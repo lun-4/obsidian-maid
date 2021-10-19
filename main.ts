@@ -27,10 +27,12 @@ export default class MyPlugin extends Plugin {
         let prio_pairs: Array<Array<number>> = [];
         let total_prio = 0;
         fileData.split("\n").forEach((line) => {
+          const isCompletedTask = line.includes("- [x]");
+
           const matches = [...line.matchAll(PRIO_REGEX)];
           if (matches.length > 0) {
             const priority: number = parseInt(matches[0][1], 10);
-            if (priority) {
+            if (priority && !isCompletedTask) {
               console.log("task", lineIndex, priority);
               prio_pairs.push([priority, lineIndex]);
               total_prio += priority;
