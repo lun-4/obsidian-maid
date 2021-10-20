@@ -120,10 +120,11 @@ export default class MyPlugin extends Plugin {
         const cursor = editor.getCursor();
 
         const wantedLine = editor.getLine(cursor.line);
-        const matches = [...wantedLine.matchAll(MARKDOWN_LIST_ELEMENT_REGEX)];
-        if (!matches) return;
+        const firstMatch = wantedLine
+          .matchAll(MARKDOWN_LIST_ELEMENT_REGEX)
+          .next().value;
+        if (!firstMatch) return;
 
-        const firstMatch = matches[0];
         console.log("match", firstMatch);
         let replaceWith = null;
         if (firstMatch[1] == " ") {
