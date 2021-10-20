@@ -8,7 +8,34 @@ import {
   MarkdownSourceView,
   Editor,
   MarkdownView,
+  EditorPosition,
 } from "obsidian";
+
+function addDateToEditor(
+  editor: Editor,
+  cursor: EditorPosition,
+  wantedLine: string,
+  wantedDate: Date
+) {
+  const datePosition = {
+    line: cursor.line,
+    ch: wantedLine.length,
+  };
+  const wantedDateAsString =
+    wantedDate.getFullYear() +
+    "-" +
+    ("0" + (wantedDate.getMonth() + 1)).slice(-2) +
+    "-" +
+    ("0" + wantedDate.getDate()).slice(-2);
+
+  // putting the same position on both 'from' and 'to' parameters leads
+  // to the replaceRange inserting text instead.
+  editor.replaceRange(
+    ` (Done at ${wantedDateAsString})`,
+    datePosition,
+    datePosition
+  );
+}
 
 export default class MyPlugin extends Plugin {
   async onload() {
@@ -99,22 +126,8 @@ export default class MyPlugin extends Plugin {
             .next();
           const dateMatch = dateMatchIterValue.value;
           if (replaceWith == "x" && !dateMatch) {
-            const datePosition = {
-              line: cursor.line,
-              ch: wantedLine.length,
-            };
             const now = new Date();
-            const nowAsString =
-              now.getFullYear() +
-              "-" +
-              ("0" + (now.getMonth() + 1)).slice(-2) +
-              "-" +
-              ("0" + now.getDate()).slice(-2);
-            editor.replaceRange(
-              ` (Done at ${nowAsString})`,
-              datePosition,
-              datePosition
-            );
+            addDateToEditor(editor, cursor, wantedLine, now);
           } else if (replaceWith == " " && dateMatchIterValue.value) {
             const dateMatch = dateMatchIterValue.value;
             const datePositionStart = {
