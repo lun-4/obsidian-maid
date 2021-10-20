@@ -65,7 +65,9 @@ export default class MyPlugin extends Plugin {
       editorCallback: (editor: Editor, view: MarkdownView) => {
         console.log("must roll task", editor, view);
         const fileData = view.data;
-        let lineIndex = 0; // TODO change to editor.firstLine()
+        // editor.firstLine and editor.eachLine are unavailable on the
+        // Editor abstraction, so we can't use them.
+        let lineIndex = 0;
         const PRIO_REGEX = /%prio=(\d+)/g;
 
         let prio_pairs: Array<Array<number>> = [];
