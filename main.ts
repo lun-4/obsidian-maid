@@ -37,6 +37,23 @@ function addDateToEditor(
   );
 }
 
+function removeDateToEditor(
+  editor: Editor,
+  cursor: EditorPosition,
+  dateMatch: any
+) {
+  const datePositionStart = {
+    line: cursor.line,
+    ch: dateMatch.index,
+  };
+  const datePositionEnd = {
+    line: cursor.line,
+    ch: dateMatch.index + dateMatch[0].length,
+  };
+
+  editor.replaceRange("", datePositionStart, datePositionEnd);
+}
+
 export default class MyPlugin extends Plugin {
   async onload() {
     console.log("loading plugin");
@@ -129,17 +146,7 @@ export default class MyPlugin extends Plugin {
             const now = new Date();
             addDateToEditor(editor, cursor, wantedLine, now);
           } else if (replaceWith == " " && dateMatchIterValue.value) {
-            const dateMatch = dateMatchIterValue.value;
-            const datePositionStart = {
-              line: cursor.line,
-              ch: dateMatch.index,
-            };
-            const datePositionEnd = {
-              line: cursor.line,
-              ch: dateMatch.index + dateMatch[0].length,
-            };
-
-            editor.replaceRange("", datePositionStart, datePositionEnd);
+            removeDateToEditor(editor, cursor, dateMatch);
           }
         }
       },
