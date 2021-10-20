@@ -54,6 +54,10 @@ function removeDateToEditor(
   editor.replaceRange("", datePositionStart, datePositionEnd);
 }
 
+const PRIO_REGEX = /%prio=(\d+)/g;
+const MARKDOWN_LIST_ELEMENT_REGEX = /- \[([x ]?)\]/g;
+const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
+
 export default class MyPlugin extends Plugin {
   async onload() {
     console.log("loading plugin");
@@ -68,7 +72,6 @@ export default class MyPlugin extends Plugin {
         // editor.firstLine and editor.eachLine are unavailable on the
         // Editor abstraction, so we can't use them.
         let lineIndex = 0;
-        const PRIO_REGEX = /%prio=(\d+)/g;
 
         let prio_pairs: Array<Array<number>> = [];
         let total_prio = 0;
@@ -115,8 +118,6 @@ export default class MyPlugin extends Plugin {
       editorCallback: (editor: Editor, view: MarkdownView) => {
         const fileData = view.data;
         const cursor = editor.getCursor();
-        const MARKDOWN_LIST_ELEMENT_REGEX = /- \[([x ]?)\]/g;
-        const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
 
         const wantedLine = editor.getLine(cursor.line);
         const matches = [...wantedLine.matchAll(MARKDOWN_LIST_ELEMENT_REGEX)];
