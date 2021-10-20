@@ -61,5 +61,75 @@ export default class MyPlugin extends Plugin {
         }
       },
     });
+
+    this.addCommand({
+      id: "toggle-task-completeness",
+      name: "Toggle completeness of a task",
+      hotkeys: [{ modifiers: ["Ctrl"], key: "m" }],
+      editorCallback: (editor: Editor, view: MarkdownView) => {
+        const fileData = view.data;
+        const cursor = editor.getCursor();
+        const MARKDOWN_LIST_ELEMENT_REGEX = /- \[([x ]?)\]/g;
+        const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
+
+        const wantedLine = editor.getLine(cursor.line);
+        const matches = [...wantedLine.matchAll(MARKDOWN_LIST_ELEMENT_REGEX)];
+        if (matches) {
+          const firstMatch = matches[0];
+          console.log("match", firstMatch);
+          let replaceWith = null;
+          if (firstMatch[1] == " ") {
+            replaceWith = "x";
+          } else if (firstMatch[1] == "x") {
+            replaceWith = " ";
+          }
+          console.log("replaceWith", replaceWith);
+          if (!replaceWith) return;
+          const charPosition = {
+            line: cursor.line,
+            ch: firstMatch.index + 3,
+          };
+          const charPositionEnd = {
+            line: cursor.line,
+            ch: firstMatch.index + 4,
+          };
+          editor.replaceRange(replaceWith, charPosition, charPositionEnd);
+          const dateMatchIterValue = wantedLine
+            .matchAll(MAID_TASK_CLOSE_METADATA)
+            .next();
+          const dateMatch = dateMatchIterValue.value;
+          if (replaceWith == "x" && !dateMatch) {
+            const datePosition = {
+              line: cursor.line,
+              ch: wantedLine.length,
+            };
+            const now = new Date();
+            const nowAsString =
+              now.getFullYear() +
+              "-" +
+              ("0" + (now.getMonth() + 1)).slice(-2) +
+              "-" +
+              ("0" + now.getDate()).slice(-2);
+            editor.replaceRange(
+              ` (Done at ${nowAsString})`,
+              datePosition,
+              datePosition
+            );
+          } else if (replaceWith == " " && dateMatchIterValue.value) {
+            const dateMatch = dateMatchIterValue.value;
+            const datePositionStart = {
+              line: cursor.line,
+              ch: dateMatch.index,
+            };
+            const datePositionEnd = {
+              line: cursor.line,
+              ch: dateMatch.index + dateMatch[0].length,
+            };
+
+            editor.replaceRange("", datePositionStart, datePositionEnd);
+          }
+        }
+      },
+    });
   }
 }
