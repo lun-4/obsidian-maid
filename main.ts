@@ -121,36 +121,36 @@ export default class MyPlugin extends Plugin {
 
         const wantedLine = editor.getLine(cursor.line);
         const matches = [...wantedLine.matchAll(MARKDOWN_LIST_ELEMENT_REGEX)];
-        if (matches) {
-          const firstMatch = matches[0];
-          console.log("match", firstMatch);
-          let replaceWith = null;
-          if (firstMatch[1] == " ") {
-            replaceWith = "x";
-          } else if (firstMatch[1] == "x") {
-            replaceWith = " ";
-          }
-          console.log("replaceWith", replaceWith);
-          if (!replaceWith) return;
-          const charPosition = {
-            line: cursor.line,
-            ch: firstMatch.index + 3,
-          };
-          const charPositionEnd = {
-            line: cursor.line,
-            ch: firstMatch.index + 4,
-          };
-          editor.replaceRange(replaceWith, charPosition, charPositionEnd);
-          const dateMatchIterValue = wantedLine
-            .matchAll(MAID_TASK_CLOSE_METADATA)
-            .next();
-          const dateMatch = dateMatchIterValue.value;
-          if (replaceWith == "x" && !dateMatch) {
-            const now = new Date();
-            addDateToEditor(editor, cursor, wantedLine, now);
-          } else if (replaceWith == " " && dateMatchIterValue.value) {
-            removeDateToEditor(editor, cursor, dateMatch);
-          }
+        if (!matches) return;
+
+        const firstMatch = matches[0];
+        console.log("match", firstMatch);
+        let replaceWith = null;
+        if (firstMatch[1] == " ") {
+          replaceWith = "x";
+        } else if (firstMatch[1] == "x") {
+          replaceWith = " ";
+        }
+        console.log("replaceWith", replaceWith);
+        if (!replaceWith) return;
+        const charPosition = {
+          line: cursor.line,
+          ch: firstMatch.index + 3,
+        };
+        const charPositionEnd = {
+          line: cursor.line,
+          ch: firstMatch.index + 4,
+        };
+        editor.replaceRange(replaceWith, charPosition, charPositionEnd);
+        const dateMatchIterValue = wantedLine
+          .matchAll(MAID_TASK_CLOSE_METADATA)
+          .next();
+        const dateMatch = dateMatchIterValue.value;
+        if (replaceWith == "x" && !dateMatch) {
+          const now = new Date();
+          addDateToEditor(editor, cursor, wantedLine, now);
+        } else if (replaceWith == " " && dateMatchIterValue.value) {
+          removeDateToEditor(editor, cursor, dateMatch);
         }
       },
     });
