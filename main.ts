@@ -12,7 +12,7 @@ import {
 } from "obsidian";
 
 const PRIO_REGEX = /%prio=(\d+)/g;
-const MARKDOWN_LIST_ELEMENT_REGEX = /- \[([x ]?)\]/g;
+const MARKDOWN_LIST_ELEMENT_REGEX = /[-+*]?(?: \d+\.)? \[(.)\]/g;
 const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
 
 function doneString(dateObj: Date): string {
@@ -214,13 +214,21 @@ export default class MaidPlugin extends Plugin {
         let prio_pairs: Array<Array<number>> = Object.entries(priorities)
           .map((x) => [parseInt(x[0]), x[1]]) // Object.entries makes the key a string?
           .filter((x) => {
-            const line = editor.getLine(x[0]);
-
-            const isFinishedTask = line.includes("- [x]");
+            // shortcircuit checks because regex computing is expensive
+            // and precious
             const isNegativeWeight = x[1] < 0;
-            const isNotTask = !line.trim().match(MARKDOWN_LIST_ELEMENT_REGEX);
+            if (isNegativeWeight) return false;
 
-            return !(isFinishedTask || isNegativeWeight || isNotTask);
+            const line = editor.getLine(x[0]);
+            const taskMatch = line
+              .trim()
+              .matchAll(MARKDOWN_LIST_ELEMENT_REGEX)
+              .next().value;
+            if (!taskMatch) return false;
+
+            const isFinishedTask = taskMatch[1] !== " ";
+
+            return true;
           });
 
         let total_prio = prio_pairs.map((x) => x[1]).reduce((a, b) => a + b);
