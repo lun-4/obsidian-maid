@@ -1,7 +1,7 @@
 {
   "name": "obsidian-maid",
-  "version": "0.0.1",
-  "description": "Opinionated TODO app",
+  "version": "1.0.0",
+  "description": "Opinionated TODO tooling",
   "main": "main.js",
   "scripts": {
     "dev": "esbuild main.ts --bundle --external:obsidian --outdir=.  --target=es2016 --format=cjs --sourcemap=inline --watch",
