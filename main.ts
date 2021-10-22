@@ -206,11 +206,6 @@ export default class MaidPlugin extends Plugin {
             return !(isFinishedTask || isNegativeWeight || isNotTask);
           });
 
-        for (const [idx, prio] of prio_pairs) {
-          const deez = editor.getLine(idx);
-          console.log("%s - %s", deez, prio);
-        }
-
         let total_prio = prio_pairs.map((x) => x[1]).reduce((a, b) => a + b);
         if (total_prio < 1) return;
 
