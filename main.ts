@@ -343,8 +343,21 @@ export default class MaidPlugin extends Plugin {
       })
       .join("");
 
+    const cachedMetadata = this.app.metadataCache.getFileCache(file);
+    const itemsLeft = cachedMetadata.listItems.filter((x) => {
+      const listEntry = fileContent.substring(
+        x.position.start.offset,
+        x.position.end.offset
+      );
+      const match = listEntry.matchAll(MARKDOWN_LIST_ELEMENT_REGEX).next()
+        .value;
+      if (!match) return false;
+
+      return match[1] === " ";
+    }).length;
+
     this.statusBarItemEl.setText(
-      `|${blockCharacters}| [${tasksDoneToday} today]`
+      `|${blockCharacters}| [${tasksDoneToday} today] [${itemsLeft} left]`
     );
     this.statusBarItemEl.addClass("maid-status-bar");
   }
