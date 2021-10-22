@@ -6,12 +6,25 @@ import {
   Editor,
   MarkdownView,
   EditorPosition,
-  ListItemCache
+  ListItemCache,
+  HTMLElement,
+  TFile
 } from "obsidian";
 
 const PRIO_REGEX = /%prio=(\d+)/g;
 const MARKDOWN_LIST_ELEMENT_REGEX = /- \[([x ]?)\]/g;
 const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
+
+function doneString(dateObj: Date): string {
+  const dateString =
+    dateObj.getFullYear() +
+    "-" +
+    ("0" + (dateObj.getMonth() + 1)).slice(-2) +
+    "-" +
+    ("0" + dateObj.getDate()).slice(-2);
+
+  return ` (Done at ${dateString})`;
+}
 
 function addDateToEditor(
   editor: Editor,
@@ -23,20 +36,10 @@ function addDateToEditor(
     line: cursor.line,
     ch: wantedLine.length
   };
-  const wantedDateAsString =
-    wantedDate.getFullYear() +
-    "-" +
-    ("0" + (wantedDate.getMonth() + 1)).slice(-2) +
-    "-" +
-    ("0" + wantedDate.getDate()).slice(-2);
 
   // putting the same position on both 'from' and 'to' parameters leads
   // to the replaceRange inserting text instead.
-  editor.replaceRange(
-    ` (Done at ${wantedDateAsString})`,
-    datePosition,
-    datePosition
-  );
+  editor.replaceRange(doneString(wantedDate), datePosition, datePosition);
 }
 
 function removeDateToEditor(
@@ -164,10 +167,24 @@ class MaidSettingTab extends PluginSettingTab {
 
 export default class MaidPlugin extends Plugin {
   settings: MaidPluginSettings;
+  statusBarItemEl: HTMLElement;
 
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MaidSettingTab(this.app, this));
+
+    this.statusBarItemEl = this.addStatusBarItem();
+    this.registerEvent(
+      this.app.workspace.on("file-open", (file: TFile) => {
+        this.refreshStatusBar(file);
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("modify", (file: TFile) => {
+        this.refreshStatusBar(file);
+      })
+    );
 
     this.addCommand({
       id: "roll-task",
@@ -271,5 +288,57 @@ export default class MaidPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  tasksDoneInDay(fileContent: string, day: Date): Number {
+    const nowDoneString = doneString(day);
+    const doneRegex = new RegExp(
+      // need to replace as () by themselves would be considered a
+      // regex capturing group, and we don't want that
+      nowDoneString.replace("(", "\\(").replace(")", "\\)"),
+      "g"
+    );
+    const doneCount = [...fileContent.matchAll(doneRegex)].length;
+    return doneCount;
+  }
+
+  async refreshStatusBar(file: TFile) {
+    console.log("refresh status bar", file);
+    const fileContent = await file.vault.cachedRead(file);
+    const dateOffsetedBy = (days: Number) => {
+      let d = new Date();
+      d.setDate(d.getDate() - days);
+      return d;
+    };
+    const taskDoneAmounts = [...Array(7).keys()]
+      .map((offset: Number) => dateOffsetedBy(offset))
+      .map((taskDate) => {
+        return this.tasksDoneInDay(fileContent, taskDate);
+      })
+      .reverse();
+    const tasksDoneToday = taskDoneAmounts[taskDoneAmounts.length - 1];
+
+    const maxTasksDone = Math.max(...taskDoneAmounts);
+
+    // calculate ratios between task done and maxTasksDone, select block
+    // character based on that ratio
+    const blockCharacters = taskDoneAmounts
+      .map((taskDoneCount) => taskDoneCount / maxTasksDone)
+      .map((ratio) => {
+        if (ratio > 0.9) return "█";
+        if (ratio > 0.7) return "▇";
+        if (ratio > 0.5) return "▆";
+        if (ratio > 0.4) return "▅";
+        if (ratio > 0.3) return "▃";
+        if (ratio > 0.2) return "▂";
+        if (ratio > 0.1) return "▁";
+        return " ";
+      })
+      .join("");
+
+    this.statusBarItemEl.setText(
+      `|${blockCharacters}| [${tasksDoneToday} today]`
+    );
+    this.statusBarItemEl.addClass("maid-status-bar");
   }
 }
