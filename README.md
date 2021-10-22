@@ -4,10 +4,10 @@
 
 ## How to use
 
-- Clone this repo.
-- `npm i` or `yarn` to install dependencies
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+```sh
+cd VaultFolder/.obsidian/plugins
+git clone https://github.com/lun-4/obsidian-maid
+cd obsidian-maid
+npm i
+npm run build # or 'npm run dev' for development
+```
