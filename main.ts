@@ -225,12 +225,14 @@ class MaidSettingTab extends PluginSettingTab {
 export default class MaidPlugin extends Plugin {
   settings: MaidPluginSettings;
   statusBarItemEl: HTMLElement;
+  lastRefreshedFile: TFile;
 
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MaidSettingTab(this.app, this));
 
     this.statusBarItemEl = this.addStatusBarItem();
+    this.statusBarItemEl.addClass("maid-status-bar");
     // gets rid of the tiny whitespace it makes when first enabled
     this.statusBarItemEl.addClass("maid-status-bar-hidden");
 
@@ -243,6 +245,12 @@ export default class MaidPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("modify", (file: TFile) => {
         this.refreshStatusBar(file);
+      })
+    );
+
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file: TFile) => {
+        if (this.lastRefreshedFile === file) this.refreshStatusBar(file);
       })
     );
 
@@ -413,26 +421,18 @@ export default class MaidPlugin extends Plugin {
 
   async drawDoneLeft(file: TFile, statusBarItems: string[]) {
     if (!this.settings.statusBarRemaining) return;
-    const fileContent = await file.vault.cachedRead(file);
     const cachedMetadata = this.app.metadataCache.getFileCache(file);
 
+    // this'll be off slightly since it's cached
     const itemsLeft = cachedMetadata.listItems.filter((x) => {
-      const listEntry = fileContent.substring(
-        x.position.start.offset,
-        x.position.end.offset
-      );
-      const match = listEntry.matchAll(MARKDOWN_LIST_ELEMENT_REGEX).next()
-        .value;
-      if (!match) return false;
-
-      return match[1] === " ";
+      return x?.task === " ";
     }).length;
 
     statusBarItems.push(`[${itemsLeft} left]`);
   }
 
   async refreshStatusBar(file: TFile) {
-    this.statusBarItemEl.addClass("maid-status-bar");
+    this.lastRefreshedFile = file;
     if (!this.settings.statusBarEnabled) {
       this.statusBarItemEl.addClass("maid-status-bar-hidden");
       return;
