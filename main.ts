@@ -303,7 +303,6 @@ export default class MaidPlugin extends Plugin {
   }
 
   async refreshStatusBar(file: TFile) {
-    console.log("refresh status bar", file);
     const fileContent = await file.vault.cachedRead(file);
     const dateOffsetedBy = (days: Number) => {
       let d = new Date();
