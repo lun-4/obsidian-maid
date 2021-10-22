@@ -226,6 +226,7 @@ export default class MaidPlugin extends Plugin {
             if (!taskMatch) return false;
 
             const isFinishedTask = taskMatch[1] !== " ";
+            if (isFinishedTask) return false;
 
             return true;
           });
