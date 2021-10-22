@@ -112,11 +112,21 @@ function getPriority(
 interface MaidPluginSettings {
   defaultPriority: number;
   priorityInheritance: boolean;
+
+  statusBarEnabled: boolean;
+  statusBarActivity: boolean;
+  statusBarDoneToday: boolean;
+  statusBarRemaining: boolean;
 }
 
 const DEFAULT_SETTINGS: MaidPluginSettings = {
   defaultPriority: 0,
-  priorityInheritance: true
+  priorityInheritance: true,
+
+  statusBarEnabled: true,
+  statusBarActivity: true,
+  statusBarDoneToday: true,
+  statusBarRemaining: true
 };
 
 class MaidSettingTab extends PluginSettingTab {
@@ -161,6 +171,56 @@ class MaidSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    containerEl.createEl("h3", { text: "Status bar" });
+
+    new Setting(containerEl)
+      .setName("Enable status bar")
+      .setDesc("Whether to show the status bar in the bottom right.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.statusBarEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.statusBarEnabled = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Recent task activity")
+      .setDesc("ASCII character graph of recent task activity.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.statusBarActivity)
+          .onChange(async (value) => {
+            this.plugin.settings.statusBarActivity = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Tasks done today")
+      .setDesc("Shows how many tasks you've completed today.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.statusBarDoneToday)
+          .onChange(async (value) => {
+            this.plugin.settings.statusBarDoneToday = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Tasks remaining")
+      .setDesc("Shows how many tasks yet to be completed.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.statusBarRemaining)
+          .onChange(async (value) => {
+            this.plugin.settings.statusBarRemaining = value;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }
 
@@ -173,6 +233,9 @@ export default class MaidPlugin extends Plugin {
     this.addSettingTab(new MaidSettingTab(this.app, this));
 
     this.statusBarItemEl = this.addStatusBarItem();
+    // gets rid of the tiny whitespace it makes when first enabled
+    this.statusBarItemEl.addClass("maid-status-bar-hidden");
+
     this.registerEvent(
       this.app.workspace.on("file-open", (file: TFile) => {
         this.refreshStatusBar(file);
@@ -310,7 +373,7 @@ export default class MaidPlugin extends Plugin {
     return doneCount;
   }
 
-  async refreshStatusBar(file: TFile) {
+  async drawActivity(file: TFile, statusBarItems: string[]) {
     const fileContent = await file.vault.cachedRead(file);
     const dateOffsetedBy = (days: number) => {
       let d = new Date();
@@ -323,7 +386,6 @@ export default class MaidPlugin extends Plugin {
         return this.tasksDoneInDay(fileContent, taskDate);
       })
       .reverse();
-    const tasksDoneToday = taskDoneAmounts[taskDoneAmounts.length - 1];
 
     const maxTasksDone = Math.max(...taskDoneAmounts);
 
@@ -343,7 +405,20 @@ export default class MaidPlugin extends Plugin {
       })
       .join("");
 
+    // because of how we calculate these two, this check has to be at the bottom
+    if (this.settings.statusBarActivity)
+      statusBarItems.push(`|${blockCharacters}|`);
+    if (this.settings.statusBarDoneToday) {
+      const tasksDoneToday = taskDoneAmounts[taskDoneAmounts.length - 1];
+      statusBarItems.push(`[${tasksDoneToday} today]`);
+    }
+  }
+
+  async drawDoneLeft(file: TFile, statusBarItems: string[]) {
+    if (!this.settings.statusBarRemaining) return;
+    const fileContent = await file.vault.cachedRead(file);
     const cachedMetadata = this.app.metadataCache.getFileCache(file);
+
     const itemsLeft = cachedMetadata.listItems.filter((x) => {
       const listEntry = fileContent.substring(
         x.position.start.offset,
@@ -356,9 +431,22 @@ export default class MaidPlugin extends Plugin {
       return match[1] === " ";
     }).length;
 
-    this.statusBarItemEl.setText(
-      `|${blockCharacters}| [${tasksDoneToday} today] [${itemsLeft} left]`
-    );
+    statusBarItems.push(`[${itemsLeft} left]`);
+  }
+
+  async refreshStatusBar(file: TFile) {
     this.statusBarItemEl.addClass("maid-status-bar");
+    if (!this.settings.statusBarEnabled) {
+      this.statusBarItemEl.addClass("maid-status-bar-hidden");
+      return;
+    } else {
+      this.statusBarItemEl.removeClass("maid-status-bar-hidden");
+    }
+
+    let statusBarItems: string[] = [];
+    await this.drawActivity(file, statusBarItems);
+    await this.drawDoneLeft(file, statusBarItems);
+
+    this.statusBarItemEl.setText(statusBarItems.join(" "));
   }
 }
