@@ -7,7 +7,6 @@ import {
   MarkdownView,
   EditorPosition,
   ListItemCache,
-  HTMLElement,
   TFile
 } from "obsidian";
 
@@ -298,7 +297,7 @@ export default class MaidPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  tasksDoneInDay(fileContent: string, day: Date): Number {
+  tasksDoneInDay(fileContent: string, day: Date): number {
     const nowDoneString = doneString(day);
     const doneRegex = new RegExp(
       // need to replace as () by themselves would be considered a
@@ -312,13 +311,13 @@ export default class MaidPlugin extends Plugin {
 
   async refreshStatusBar(file: TFile) {
     const fileContent = await file.vault.cachedRead(file);
-    const dateOffsetedBy = (days: Number) => {
+    const dateOffsetedBy = (days: number) => {
       let d = new Date();
       d.setDate(d.getDate() - days);
       return d;
     };
     const taskDoneAmounts = [...Array(7).keys()]
-      .map((offset: Number) => dateOffsetedBy(offset))
+      .map((offset: number) => dateOffsetedBy(offset))
       .map((taskDate) => {
         return this.tasksDoneInDay(fileContent, taskDate);
       })
