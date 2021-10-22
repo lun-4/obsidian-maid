@@ -80,9 +80,7 @@ function getPriority(
   // test if we have a priority set
   const match = listEntry.matchAll(PRIO_REGEX).next().value;
   if (match) {
-    const priority = parseInt(match[1], 10);
-    const lineNumber = pos.start.line;
-    return priority;
+    return parseInt(match[1], 10);
   } else {
     if (!settings.priorityInheritance) return settings.defaultPriority;
 
@@ -318,7 +316,6 @@ export default class MaidPlugin extends Plugin {
       name: "Toggle completeness of a task",
       hotkeys: [{ modifiers: ["Ctrl"], key: "m" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        const fileData = view.data;
         const cursor = editor.getCursor();
 
         const wantedLine = editor.getLine(cursor.line);
