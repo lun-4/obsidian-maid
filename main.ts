@@ -7,7 +7,8 @@ import {
   MarkdownView,
   EditorPosition,
   ListItemCache,
-  TFile
+  TFile,
+  Modal,
 } from "obsidian";
 
 const PRIO_REGEX = /%prio=(\d+)/g;
@@ -29,11 +30,11 @@ function addDateToEditor(
   editor: Editor,
   cursor: EditorPosition,
   wantedLine: string,
-  wantedDate: Date
+  wantedDate: Date,
 ) {
   const datePosition = {
     line: cursor.line,
-    ch: wantedLine.length
+    ch: wantedLine.length,
   };
 
   // putting the same position on both 'from' and 'to' parameters leads
@@ -44,15 +45,15 @@ function addDateToEditor(
 function removeDateToEditor(
   editor: Editor,
   cursor: EditorPosition,
-  dateMatch: any
+  dateMatch: any,
 ) {
   const datePositionStart = {
     line: cursor.line,
-    ch: dateMatch.index
+    ch: dateMatch.index,
   };
   const datePositionEnd = {
     line: cursor.line,
-    ch: dateMatch.index + dateMatch[0].length
+    ch: dateMatch.index + dateMatch[0].length,
   };
 
   editor.replaceRange("", datePositionStart, datePositionEnd);
@@ -68,7 +69,7 @@ function getPriority(
   listItems: ListItemCache[],
   settings: MaidPluginSettings,
   editor: Editor,
-  view: MarkdownView
+  view: MarkdownView,
 ): number {
   const fileData = view.data;
   // find ourselves from our line number
@@ -99,7 +100,7 @@ function getPriority(
         listItems,
         settings,
         editor,
-        view
+        view,
       );
     } else {
       return settings.defaultPriority;
@@ -124,7 +125,7 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarEnabled: true,
   statusBarActivity: true,
   statusBarDoneToday: true,
-  statusBarRemaining: true
+  statusBarRemaining: true,
 };
 
 class MaidSettingTab extends PluginSettingTab {
@@ -142,7 +143,7 @@ class MaidSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Default task priority")
       .setDesc(
-        "The default task priority to use when there isn't one set. Set to 0 to disable."
+        "The default task priority to use when there isn't one set. Set to 0 to disable.",
       )
       .addText((text) =>
         text
@@ -153,13 +154,13 @@ class MaidSettingTab extends PluginSettingTab {
               ? 0
               : parsedValue;
             await this.plugin.saveSettings();
-          })
+          }),
       );
 
     new Setting(containerEl)
       .setName("Task priority inheritance")
       .setDesc(
-        "When a task has no priority, it'll inherit from its parent. When disabled, it'll instead use the default task priority."
+        "When a task has no priority, it'll inherit from its parent. When disabled, it'll instead use the default task priority.",
       )
       .addToggle((toggle) =>
         toggle
@@ -239,19 +240,19 @@ export default class MaidPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("file-open", (file: TFile) => {
         this.refreshStatusBar(file);
-      })
+      }),
     );
 
     this.registerEvent(
       this.app.vault.on("modify", (file: TFile) => {
         this.refreshStatusBar(file);
-      })
+      }),
     );
 
     this.registerEvent(
       this.app.metadataCache.on("changed", (file: TFile) => {
         if (this.lastRefreshedFile === file) this.refreshStatusBar(file);
-      })
+      }),
     );
 
     this.addCommand({
@@ -275,7 +276,7 @@ export default class MaidPlugin extends Plugin {
             listItems,
             this.settings,
             editor,
-            view
+            view,
           );
         }
 
@@ -335,11 +336,11 @@ export default class MaidPlugin extends Plugin {
         let replaceWith = firstMatch[1] === " " ? "x" : " ";
         const charPosition: EditorPosition = {
           line: cursor.line,
-          ch: firstMatch.index + 3
+          ch: firstMatch.index + 3,
         };
         const charPositionEnd: EditorPosition = {
           line: cursor.line,
-          ch: firstMatch.index + 4
+          ch: firstMatch.index + 4,
         };
         editor.replaceRange(replaceWith, charPosition, charPositionEnd);
 
@@ -354,7 +355,7 @@ export default class MaidPlugin extends Plugin {
         } else if (replaceWith == " " && dateMatchIterValue.value) {
           removeDateToEditor(editor, cursor, dateMatch);
         }
-      }
+      },
     });
   }
 
@@ -372,7 +373,7 @@ export default class MaidPlugin extends Plugin {
       // need to replace as () by themselves would be considered a
       // regex capturing group, and we don't want that
       nowDoneString.replace("(", "\\(").replace(")", "\\)"),
-      "g"
+      "g",
     );
     const doneCount = [...fileContent.matchAll(doneRegex)].length;
     return doneCount;
