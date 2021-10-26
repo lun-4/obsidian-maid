@@ -126,6 +126,8 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarActivity: true,
   statusBarDoneToday: true,
   statusBarRemaining: true,
+
+  intendedUserExperience: false,
 };
 
 class MaidSettingTab extends PluginSettingTab {
@@ -168,7 +170,19 @@ class MaidSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.priorityInheritance = value;
             await this.plugin.saveSettings();
-          })
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("The Intended User Experience")
+      .setDesc("Enable to help reduce bad habits")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.intendedUserExperience)
+          .onChange(async (value) => {
+            this.plugin.settings.intendedUserExperience = value;
+            await this.plugin.saveSettings();
+          }),
       );
 
     containerEl.createEl("h3", { text: "Status bar" });
@@ -223,10 +237,29 @@ class MaidSettingTab extends PluginSettingTab {
   }
 }
 
+class TestModal extends Modal {
+  plugin: MaidPlugin;
+  constructor(plugin: MaidPlugin) {
+    super(plugin.app);
+    this.plygin = plugin;
+  }
+
+  onOpen() {
+    let { contentEl } = this;
+    contentEl.setText("Woah!");
+  }
+
+  onClose() {
+    let { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
 export default class MaidPlugin extends Plugin {
   settings: MaidPluginSettings;
   statusBarItemEl: HTMLElement;
   lastRefreshedFile: TFile;
+  recentlyRolledTask: boolean = false;
 
   async onload() {
     await this.loadSettings();
@@ -260,6 +293,12 @@ export default class MaidPlugin extends Plugin {
       name: "Roll random task by priority",
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
+        if (this.settings.intendedUserExperience && this.recentlyRolledTask) {
+          console.log("uh oh ux is real");
+          new TestModal(this).open();
+          return;
+        }
+
         const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
         const listItems = cachedMetadata.listItems;
 
@@ -316,8 +355,14 @@ export default class MaidPlugin extends Plugin {
           index -= priority;
         }
 
-        if (choice !== null) editor.setCursor(choice);
-      }
+        if (choice !== null) {
+          editor.setCursor(choice);
+          this.recentlyRolledTask = true;
+          setTimeout(() => {
+            this.recentlyRolledTask = false;
+          }, 60 * 1000);
+        }
+      },
     });
 
     this.addCommand({
