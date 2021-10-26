@@ -116,6 +116,8 @@ interface MaidPluginSettings {
   statusBarActivity: boolean;
   statusBarDoneToday: boolean;
   statusBarRemaining: boolean;
+
+  intendedUserExperience: boolean;
 }
 
 const DEFAULT_SETTINGS: MaidPluginSettings = {
@@ -241,7 +243,7 @@ class TestModal extends Modal {
   plugin: MaidPlugin;
   constructor(plugin: MaidPlugin) {
     super(plugin.app);
-    this.plygin = plugin;
+    this.plugin = plugin;
   }
 
   onOpen() {
