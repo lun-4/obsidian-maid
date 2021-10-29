@@ -127,7 +127,7 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarEnabled: true,
   statusBarActivity: true,
   statusBarDoneToday: true,
-  statusBarRemaining: true,
+  statusBarRemaining: false,
 
   intendedUserExperience: false,
 };
