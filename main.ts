@@ -116,8 +116,6 @@ interface MaidPluginSettings {
   statusBarActivity: boolean;
   statusBarDoneToday: boolean;
   statusBarRemaining: boolean;
-
-  intendedUserExperience: boolean;
 }
 
 const DEFAULT_SETTINGS: MaidPluginSettings = {
@@ -128,8 +126,6 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarActivity: true,
   statusBarDoneToday: true,
   statusBarRemaining: false,
-
-  intendedUserExperience: false,
 };
 
 class MaidSettingTab extends PluginSettingTab {
@@ -171,18 +167,6 @@ class MaidSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.priorityInheritance)
           .onChange(async (value) => {
             this.plugin.settings.priorityInheritance = value;
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(containerEl)
-      .setName("The Intended User Experience")
-      .setDesc("Enable to help reduce bad habits")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.intendedUserExperience)
-          .onChange(async (value) => {
-            this.plugin.settings.intendedUserExperience = value;
             await this.plugin.saveSettings();
           }),
       );
@@ -261,8 +245,6 @@ export default class MaidPlugin extends Plugin {
   settings: MaidPluginSettings;
   statusBarItemEl: HTMLElement;
   lastRefreshedFile: TFile;
-  recentlyRolledTask: boolean = false;
-
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MaidSettingTab(this.app, this));
@@ -295,12 +277,6 @@ export default class MaidPlugin extends Plugin {
       name: "Roll random task by priority",
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        if (this.settings.intendedUserExperience && this.recentlyRolledTask) {
-          console.log("uh oh ux is real");
-          new TestModal(this).open();
-          return;
-        }
-
         const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
         const listItems = cachedMetadata.listItems;
 
@@ -359,10 +335,6 @@ export default class MaidPlugin extends Plugin {
 
         if (choice !== null) {
           editor.setCursor(choice);
-          this.recentlyRolledTask = true;
-          setTimeout(() => {
-            this.recentlyRolledTask = false;
-          }, 60 * 1000);
         }
       },
     });
