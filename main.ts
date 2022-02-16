@@ -63,6 +63,8 @@ interface PriorityMap {
   [key: number]: number;
 }
 
+declare function assert(value: unknown): asserts value;
+
 function getPriority(
   lineNumber: number,
   priorities: PriorityMap,
@@ -74,6 +76,8 @@ function getPriority(
   const fileData = view.data;
   // find ourselves from our line number
   const listData = listItems.find((x) => x.position.start.line === lineNumber);
+
+  assert(listData !== undefined);
 
   const pos = listData.position;
   const listEntry = fileData.substring(pos.start.offset, pos.end.offset);
@@ -140,36 +144,43 @@ class MaidSettingTab extends PluginSettingTab {
     let { containerEl } = this;
     containerEl.empty();
 
+    assert(this.plugin.settings !== undefined);
+
     new Setting(containerEl)
       .setName("Default task priority")
       .setDesc(
         "The default task priority to use when there isn't one set. Set to 0 to disable.",
       )
-      .addText((text) =>
+      .addText((text) => {
+        assert(this.plugin.settings !== undefined);
         text
           .setValue(this.plugin.settings.defaultPriority.toString())
           .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
             const parsedValue = parseInt(value);
             this.plugin.settings.defaultPriority = isNaN(parsedValue)
               ? 0
               : parsedValue;
             await this.plugin.saveSettings();
-          }),
-      );
+          });
+      });
 
     new Setting(containerEl)
       .setName("Task priority inheritance")
       .setDesc(
         "When a task has no priority, it'll inherit from its parent. When disabled, it'll instead use the default task priority.",
       )
-      .addToggle((toggle) =>
+      .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
+
         toggle
           .setValue(this.plugin.settings.priorityInheritance)
           .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
             this.plugin.settings.priorityInheritance = value;
             await this.plugin.saveSettings();
-          }),
-      );
+          });
+      });
 
     containerEl.createEl("h3", { text: "Status bar" });
 
@@ -177,9 +188,11 @@ class MaidSettingTab extends PluginSettingTab {
       .setName("Enable status bar")
       .setDesc("Whether to show the status bar in the bottom right.")
       .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
         toggle
           .setValue(this.plugin.settings.statusBarEnabled)
           .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
             this.plugin.settings.statusBarEnabled = value;
             await this.plugin.saveSettings();
           });
@@ -189,9 +202,11 @@ class MaidSettingTab extends PluginSettingTab {
       .setName("Recent task activity")
       .setDesc("ASCII character graph of recent task activity.")
       .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
         toggle
           .setValue(this.plugin.settings.statusBarActivity)
           .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
             this.plugin.settings.statusBarActivity = value;
             await this.plugin.saveSettings();
           });
@@ -201,9 +216,11 @@ class MaidSettingTab extends PluginSettingTab {
       .setName("Tasks done today")
       .setDesc("Shows how many tasks you've completed today.")
       .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
         toggle
           .setValue(this.plugin.settings.statusBarDoneToday)
           .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
             this.plugin.settings.statusBarDoneToday = value;
             await this.plugin.saveSettings();
           });
@@ -213,9 +230,11 @@ class MaidSettingTab extends PluginSettingTab {
       .setName("Tasks remaining")
       .setDesc("Shows how many tasks yet to be completed.")
       .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
         toggle
           .setValue(this.plugin.settings.statusBarRemaining)
           .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
             this.plugin.settings.statusBarRemaining = value;
             await this.plugin.saveSettings();
           });
@@ -242,9 +261,10 @@ class TestModal extends Modal {
 }
 
 export default class MaidPlugin extends Plugin {
-  settings: MaidPluginSettings;
-  statusBarItemEl: HTMLElement;
-  lastRefreshedFile: TFile;
+  settings?: MaidPluginSettings;
+  statusBarItemEl?: HTMLElement;
+  lastRefreshedFile?: TFile;
+
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MaidSettingTab(this.app, this));
@@ -284,6 +304,8 @@ export default class MaidPlugin extends Plugin {
         for (const listData of cachedMetadata.listItems) {
           const pos = listData.position;
           const lineNumber = pos.start.line;
+
+          assert(this.settings !== undefined);
 
           // this assumes that there's one task per line.
           // if someone manages to get more than one task on a line, this will break!
@@ -383,6 +405,7 @@ export default class MaidPlugin extends Plugin {
   }
 
   async saveSettings() {
+    assert(this.settings !== undefined);
     await this.saveData(this.settings);
   }
 
@@ -431,8 +454,10 @@ export default class MaidPlugin extends Plugin {
       .join("");
 
     // because of how we calculate these two, this check has to be at the bottom
-    if (this.settings.statusBarActivity)
+    assert(this.settings !== undefined);
+    if (this.settings.statusBarActivity) {
       statusBarItems.push(`|${blockCharacters}|`);
+    }
     if (this.settings.statusBarDoneToday) {
       const tasksDoneToday = taskDoneAmounts[taskDoneAmounts.length - 1];
       statusBarItems.push(`[${tasksDoneToday} today]`);
@@ -440,6 +465,7 @@ export default class MaidPlugin extends Plugin {
   }
 
   async drawDoneLeft(file: TFile, statusBarItems: string[]) {
+    assert(this.settings !== undefined);
     if (!this.settings.statusBarRemaining) return;
     const cachedMetadata = this.app.metadataCache.getFileCache(file);
     if (!cachedMetadata.listItems) return;
@@ -454,6 +480,7 @@ export default class MaidPlugin extends Plugin {
 
   async refreshStatusBar(file: TFile) {
     this.lastRefreshedFile = file;
+    assert(this.settings !== undefined);
     if (!this.settings.statusBarEnabled) {
       this.statusBarItemEl.addClass("maid-status-bar-hidden");
       return;
