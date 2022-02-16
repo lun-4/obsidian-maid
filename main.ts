@@ -68,6 +68,57 @@ interface PriorityMap {
   [key: number]: number;
 }
 
+class Task {
+  rawText: string;
+  rawState?: string;
+  rawPriority?: number;
+  rawDoneAt?: string;
+  parentTaskPosition?: number;
+
+  constructor(
+    rawText: string,
+    rawState?: string,
+    rawPriority?: string,
+    rawDoneAt?: string,
+    parentTaskPosition?: number,
+  ) {
+    this.rawState = rawState;
+    this.rawPriority = rawPriority;
+    this.rawText = rawText;
+    this.rawDoneAt = rawDoneAt;
+    this.parentTaskPosition = parentTaskPosition;
+  }
+}
+
+interface RawTaskMap {
+  [taskPosition: number]: Task;
+}
+
+class TaskMap {
+  rawMap: RawTaskMap;
+
+  constructor(rawMap: RawTaskMap) {
+    this.rawMap = rawMap;
+  }
+
+  set(position: number, task: Task): Task {
+    return rawMap.set(position, task);
+  }
+
+  get(position: number): Task | undefined {
+    return rawMap.get(position);
+  }
+
+  fetchPriority(position: number): number | undefined {
+    const task = rawMap.get(position);
+    if (task === undefined) return undefined;
+    if (task.parentTaskPosition !== undefined) {
+      // child tasks inherit priority from their parent tasks
+      return this.fetchPriority(task.parentTaskPosition);
+    }
+  }
+}
+
 function getPriority(
   lineNumber: number,
   priorities: PriorityMap,
@@ -298,6 +349,15 @@ export default class MaidPlugin extends Plugin {
     );
 
     this.addCommand({
+      id: "reorder-task",
+      name: "Organize task list by priority",
+      hotkeys: [{ modifiers: ["Ctrl"], key: "d" }],
+      editorCallback: (editor: Editor, view: MarkdownView) => {
+        this.reorderTaskList(editor, view);
+      },
+    });
+
+    this.addCommand({
       id: "roll-task",
       name: "Roll random task by priority",
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
@@ -408,6 +468,188 @@ export default class MaidPlugin extends Plugin {
         }
       },
     });
+  }
+
+  makeTaskMap(view: MarkdownView): TaskMap {
+    const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
+    const listItems = cachedMetadata.listItems;
+
+    let map = new Map();
+
+    for (const listItem of listItems) {
+      const fileData = view.data;
+      const rawText = fileData.substring(
+        listItem.position.start.offset,
+        listItem.position.end.offset,
+      );
+
+      const priorityMatch = rawText.matchAll(PRIO_REGEX).next().value;
+      let rawPriority = undefined;
+      if (priorityMatch) {
+        rawPriority = parseInt(priorityMatch[1], 10);
+      }
+
+      const rawDoneAtValue = rawText.matchAll(MAID_TASK_CLOSE_METADATA).next()
+        .value;
+      let rawDoneAt = undefined;
+      if (rawDoneAtValue) {
+        rawDoneAt = rawDoneAtValue[1];
+      }
+
+      let task = new Task(
+        rawText,
+        listItem.task,
+        rawPriority,
+        rawDoneAt,
+        undefined,
+      );
+      console.log(listItem, task);
+      map.set(listItem.position.start.line, task);
+    }
+
+    const vev = shouldnt.this.error;
+    return vev;
+  }
+
+  async reorderTaskList(editor: Editor, view: MarkdownView) {
+    // from an unorganized task list, e.g
+    //
+    // - [ ] task 1 %prio=0
+    //    - [ ] subtask 1 %prio=4
+    // - [ ] task 2 %prio=1
+    // - [ ] task unknown
+    //    - [ ] another unknown task
+    // - [ ] task 3 %prio=3
+    // - [x] done %prio=3
+    //
+    // we want to have ordered tasks by their priority, with a section to
+    // unprioritized tasks
+    //
+    // - [ ] task 3 %prio=3
+    // - [ ] task 2 %prio=1
+    // - [ ] task 1 %prio=0
+    //    - [ ] subtask 1 %prio=4
+    //
+    // # unprioritized
+    //
+    // - [ ] task unknown
+    //    - [ ] another unknown task
+    //
+    // # done
+    //
+    // - [x] done %prio=3
+
+    // to do that, we need to parse the entire todo tree, find out the top
+    // level tasks, and reorder them...
+
+    // draft code to figure out how todo list api will look like
+
+    // tasks has a list of top level tasks only
+    // children tasks inside each task object
+    const tasks = this.makeTaskMap(view);
+
+    // we need to find out the line reorderings we'll have to do, but first
+    // we also need to find out the high level splits on each task group.
+    //
+    // prioritizedUndoneTasks must be reordered by priority
+    let prioritizedUndoneTasks = [];
+    // unprioritized tasks must be reordered by their original taskPosition
+    let unprioritizedTasks = [];
+    // done tasks must be reordered by (Done at X)
+    let doneTasks = [];
+
+    for (const [taskPosition, task] of tasks) {
+      if (task.state == " " && task.priority === null) {
+        unprioritizedTasks.push(taskPosition);
+      } else if (task.state == " " && task.priority !== null) {
+        prioritizedUndoneTasks.push(taskPosition);
+      } else if (task.state == "x") {
+        doneTasks.push(taskPosition);
+      }
+    }
+
+    prioritizedUndoneTasks.sort((firstTask, secondTask) => {
+      if (firstTask.priority < secondTask.priority) {
+        return -1;
+      }
+
+      if (firstTask.priority > secondTask.priority) {
+        return 1;
+      }
+
+      // if same priority, use line position
+
+      if (firstTask.position < secondTask.position) {
+        return -1;
+      }
+
+      if (firstTask.position > secondTask.position) {
+        return 1;
+      }
+
+      // they are the same task (impossible)
+      return 0;
+    });
+
+    unprioritizedTasks.sort((firstTask, secondTask) => {
+      if (firstTask.position < secondTask.position) {
+        return -1;
+      }
+
+      if (firstTask.position > secondTask.position) {
+        return 1;
+      }
+
+      // they are the same task (impossible)
+      return 0;
+    });
+
+    doneTasks.sort((firstTask, secondTask) => {
+      if (firstTask.doneAt < secondTask.doneAt) {
+        return -1;
+      }
+      if (firstTask.doneAt > secondTask.doneAt) {
+        return 1;
+      }
+
+      // if they're done in the same day, use task line number
+      if (firstTask.position < secondTask.position) {
+        return -1;
+      }
+      if (firstTask.position > secondTask.position) {
+        return 1;
+      }
+
+      // they are the same task (impossible)
+      return 0;
+    });
+
+    let output = "# unprioritized";
+
+    for (const taskPosition of unprioritizedTasks) {
+      const task = tasks.get(taskPosition);
+      output += task.fullText();
+    }
+
+    output += "# prioritized";
+    for (const taskPosition of prioritizedUndoneTasks) {
+      const task = tasks.get(taskPosition);
+      output += task.fullText();
+    }
+
+    output += "# done";
+    for (const taskPosition of doneTasks) {
+      const task = tasks.get(taskPosition);
+      output += task.fullText();
+    }
+
+    console.log(output);
+
+    //editor.replaceRange(
+    //  output,
+    //  { line: 0, ch: 0 },
+    //  { line: lastLine, ch: lastCharacter },
+    //);
   }
 
   async loadSettings() {
