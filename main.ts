@@ -8,6 +8,7 @@ import {
   EditorPosition,
   ListItemCache,
   TFile,
+  TAbstractFile,
   Modal,
 } from "obsidian";
 
@@ -263,7 +264,7 @@ class TestModal extends Modal {
 export default class MaidPlugin extends Plugin {
   settings?: MaidPluginSettings;
   statusBarItemEl?: HTMLElement;
-  lastRefreshedFile?: TFile;
+  lastRefreshedFile?: TFile | TAbstractFile;
 
   async onload() {
     await this.loadSettings();
@@ -275,13 +276,15 @@ export default class MaidPlugin extends Plugin {
     this.statusBarItemEl.addClass("maid-status-bar-hidden");
 
     this.registerEvent(
-      this.app.workspace.on("file-open", (file: TFile) => {
-        this.refreshStatusBar(file);
+      this.app.workspace.on("file-open", (file: TFile | null) => {
+        if (file !== null) {
+          this.refreshStatusBar(file);
+        }
       }),
     );
 
     this.registerEvent(
-      this.app.vault.on("modify", (file: TFile) => {
+      this.app.vault.on("modify", (file: TAbstractFile) => {
         this.refreshStatusBar(file);
       }),
     );
@@ -298,10 +301,15 @@ export default class MaidPlugin extends Plugin {
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
         const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
+        if (cachedMetadata === null) {
+          console.log("no file in cache, ignoring task roll");
+          return;
+        }
         const listItems = cachedMetadata.listItems;
+        assert(listItems !== undefined);
 
         const priorities: PriorityMap = {};
-        for (const listData of cachedMetadata.listItems) {
+        for (const listData of listItems) {
           const pos = listData.position;
           const lineNumber = pos.start.line;
 
@@ -344,7 +352,7 @@ export default class MaidPlugin extends Plugin {
         if (total_prio < 1) return;
 
         let index = Math.floor(Math.random() * total_prio);
-        let choice: number = null;
+        let choice: number | null = null;
 
         for (const pair of prio_pairs) {
           let [line_index, priority] = pair as Array<number>;
@@ -421,8 +429,8 @@ export default class MaidPlugin extends Plugin {
     return doneCount;
   }
 
-  async drawActivity(file: TFile, statusBarItems: string[]) {
-    const fileContent = await file.vault.cachedRead(file);
+  async drawActivity(file: TFile | TAbstractFile, statusBarItems: string[]) {
+    const fileContent = await file.vault.cachedRead(file as TFile);
     const dateOffsetedBy = (days: number) => {
       let d = new Date();
       d.setDate(d.getDate() - days);
@@ -464,11 +472,12 @@ export default class MaidPlugin extends Plugin {
     }
   }
 
-  async drawDoneLeft(file: TFile, statusBarItems: string[]) {
+  async drawDoneLeft(file: TFile | TAbstractFile, statusBarItems: string[]) {
     assert(this.settings !== undefined);
     if (!this.settings.statusBarRemaining) return;
-    const cachedMetadata = this.app.metadataCache.getFileCache(file);
-    if (!cachedMetadata.listItems) return;
+    const cachedMetadata = this.app.metadataCache.getFileCache(file as TFile);
+    assert(cachedMetadata !== null);
+    assert(cachedMetadata.listItems !== undefined);
 
     // this'll be off slightly since it's cached
     const itemsLeft = cachedMetadata.listItems.filter((x) => {
@@ -478,9 +487,10 @@ export default class MaidPlugin extends Plugin {
     statusBarItems.push(`[${itemsLeft} left]`);
   }
 
-  async refreshStatusBar(file: TFile) {
+  async refreshStatusBar(file: TFile | TAbstractFile) {
     this.lastRefreshedFile = file;
     assert(this.settings !== undefined);
+    assert(this.statusBarItemEl !== undefined);
     if (!this.settings.statusBarEnabled) {
       this.statusBarItemEl.addClass("maid-status-bar-hidden");
       return;
