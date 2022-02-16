@@ -16,6 +16,10 @@ const PRIO_REGEX = /%prio=(\d+)/g;
 const MARKDOWN_LIST_ELEMENT_REGEX = /[-+*]?(?: \d+\.)? \[(.)\]/g;
 const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
 
+function assert(value: unknown): asserts value {
+  if (!value) throw new Error("assertion failed");
+}
+
 function doneString(dateObj: Date): string {
   const dateString =
     dateObj.getFullYear() +
@@ -63,8 +67,6 @@ function removeDateToEditor(
 interface PriorityMap {
   [key: number]: number;
 }
-
-declare function assert(value: unknown): asserts value;
 
 function getPriority(
   lineNumber: number,
