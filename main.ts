@@ -69,52 +69,74 @@ interface PriorityMap {
 }
 
 class Task {
+  position: number;
   rawText: string;
-  rawState?: string;
-  rawPriority?: number;
-  rawDoneAt?: string;
+  state?: string;
+  priority?: number;
+  doneAt?: string;
   parentTaskPosition?: number;
+  children: Array<number>; //array of task positions
 
   constructor(
+    position: number,
     rawText: string,
-    rawState?: string,
-    rawPriority?: string,
-    rawDoneAt?: string,
+    state?: string,
+    priority?: number,
+    doneAt?: string,
     parentTaskPosition?: number,
   ) {
-    this.rawState = rawState;
-    this.rawPriority = rawPriority;
+    this.position = position;
+    this.state = state;
+    this.priority = priority;
     this.rawText = rawText;
-    this.rawDoneAt = rawDoneAt;
+    this.doneAt = doneAt;
     this.parentTaskPosition = parentTaskPosition;
+    this.children = [];
   }
 }
 
-interface RawTaskMap {
-  [taskPosition: number]: Task;
-}
+type RawTaskMap = Map<number, Task>;
 
 class TaskMap {
   rawMap: RawTaskMap;
+  settings: MaidPluginSettings;
 
-  constructor(rawMap: RawTaskMap) {
+  constructor(rawMap: RawTaskMap, settings: MaidPluginSettings) {
     this.rawMap = rawMap;
+    this.settings = settings;
   }
 
-  set(position: number, task: Task): Task {
-    return rawMap.set(position, task);
+  set(position: number, task: Task) {
+    this.rawMap.set(position, task);
   }
 
-  get(position: number): Task | undefined {
-    return rawMap.get(position);
+  getOptional(position: number): Task | undefined {
+    return this.rawMap.get(position);
   }
 
-  fetchPriority(position: number): number | undefined {
-    const task = rawMap.get(position);
-    if (task === undefined) return undefined;
-    if (task.parentTaskPosition !== undefined) {
+  get(position: number): Task {
+    const task = this.getOptional(position);
+    assert(task !== undefined);
+    return task;
+  }
+
+  fetchPriority(position: number): number {
+    const task = this.rawMap.get(position);
+    if (task === undefined) return this.settings.defaultPriority;
+
+    if (
+      this.settings.priorityInheritance &&
+      task.priority === undefined &&
+      task.parentTaskPosition !== undefined
+    ) {
       // child tasks inherit priority from their parent tasks
       return this.fetchPriority(task.parentTaskPosition);
+    }
+
+    if (task.priority === undefined) {
+      return this.settings.defaultPriority;
+    } else {
+      return task.priority;
     }
   }
 }
@@ -351,7 +373,7 @@ export default class MaidPlugin extends Plugin {
     this.addCommand({
       id: "reorder-task",
       name: "Organize task list by priority",
-      hotkeys: [{ modifiers: ["Ctrl"], key: "d" }],
+      hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.reorderTaskList(editor, view);
       },
@@ -472,9 +494,14 @@ export default class MaidPlugin extends Plugin {
 
   makeTaskMap(view: MarkdownView): TaskMap {
     const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
+    assert(cachedMetadata !== null);
     const listItems = cachedMetadata.listItems;
+    assert(listItems !== undefined);
 
-    let map = new Map();
+    let rawMap = new Map<number, Task>();
+
+    assert(this.settings !== undefined);
+    let map = new TaskMap(rawMap, this.settings);
 
     for (const listItem of listItems) {
       const fileData = view.data;
@@ -496,19 +523,28 @@ export default class MaidPlugin extends Plugin {
         rawDoneAt = rawDoneAtValue[1];
       }
 
+      const taskPosition = listItem.position.start.line;
+      let parentTaskPosition = undefined;
+      if (listItem.parent > 0) {
+        parentTaskPosition = listItem.parent;
+      }
       let task = new Task(
+        taskPosition,
         rawText,
         listItem.task,
         rawPriority,
         rawDoneAt,
-        undefined,
+        parentTaskPosition,
       );
+      if (parentTaskPosition !== undefined) {
+        const parentTask = map.get(parentTaskPosition);
+        parentTask.children.push(taskPosition);
+      }
       console.log(listItem, task);
-      map.set(listItem.position.start.line, task);
+      map.set(taskPosition, task);
     }
 
-    const vev = shouldnt.this.error;
-    return vev;
+    return map;
   }
 
   async reorderTaskList(editor: Editor, view: MarkdownView) {
@@ -558,22 +594,31 @@ export default class MaidPlugin extends Plugin {
     // done tasks must be reordered by (Done at X)
     let doneTasks = [];
 
-    for (const [taskPosition, task] of tasks) {
-      if (task.state == " " && task.priority === null) {
+    const taskIterator = tasks.rawMap[Symbol.iterator]();
+    for (const [taskPosition, task] of taskIterator) {
+      if (task.state == " " && task.priority === undefined) {
         unprioritizedTasks.push(taskPosition);
-      } else if (task.state == " " && task.priority !== null) {
+      } else if (task.state == " " && task.priority !== undefined) {
         prioritizedUndoneTasks.push(taskPosition);
       } else if (task.state == "x") {
         doneTasks.push(taskPosition);
       }
     }
 
-    prioritizedUndoneTasks.sort((firstTask, secondTask) => {
-      if (firstTask.priority < secondTask.priority) {
+    prioritizedUndoneTasks.sort((firstTaskPosition, secondTaskPosition) => {
+      const firstTask = tasks.get(firstTaskPosition);
+      const secondTask = tasks.get(secondTaskPosition);
+      assert(firstTask !== undefined);
+      assert(secondTask !== undefined);
+
+      const firstTaskPriority = tasks.fetchPriority(firstTaskPosition);
+      const secondTaskPriority = tasks.fetchPriority(secondTaskPosition);
+
+      if (firstTaskPriority < secondTaskPriority) {
         return -1;
       }
 
-      if (firstTask.priority > secondTask.priority) {
+      if (firstTaskPriority > secondTaskPriority) {
         return 1;
       }
 
@@ -590,6 +635,8 @@ export default class MaidPlugin extends Plugin {
       // they are the same task (impossible)
       return 0;
     });
+
+    /*
 
     unprioritizedTasks.sort((firstTask, secondTask) => {
       if (firstTask.position < secondTask.position) {
@@ -624,23 +671,32 @@ export default class MaidPlugin extends Plugin {
       return 0;
     });
 
-    let output = "# unprioritized";
+    */
+
+    console.log(unprioritizedTasks);
+    console.log(prioritizedUndoneTasks);
+    console.log(doneTasks);
+
+    let output = "# unprioritized\n";
 
     for (const taskPosition of unprioritizedTasks) {
       const task = tasks.get(taskPosition);
-      output += task.fullText();
+      assert(task !== undefined);
+      output += task.rawText + "\n";
     }
 
-    output += "# prioritized";
+    output += "# prioritized\n";
     for (const taskPosition of prioritizedUndoneTasks) {
       const task = tasks.get(taskPosition);
-      output += task.fullText();
+      assert(task !== undefined);
+      output += task.rawText + "\n";
     }
 
-    output += "# done";
+    output += "# done\n";
     for (const taskPosition of doneTasks) {
       const task = tasks.get(taskPosition);
-      output += task.fullText();
+      assert(task !== undefined);
+      output += task.rawText + "\n";
     }
 
     console.log(output);
