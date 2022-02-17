@@ -596,6 +596,9 @@ export default class MaidPlugin extends Plugin {
 
     const taskIterator = tasks.rawMap[Symbol.iterator]();
     for (const [taskPosition, task] of taskIterator) {
+      // only calculate top tasks
+      if (task.parentTaskPosition !== undefined) continue;
+
       if (task.state == " " && task.priority === undefined) {
         unprioritizedTasks.push(taskPosition);
       } else if (task.state == " " && task.priority !== undefined) {
@@ -677,20 +680,30 @@ export default class MaidPlugin extends Plugin {
     console.log(prioritizedUndoneTasks);
     console.log(doneTasks);
 
-    function stringifyTaskPositions(list: Array<number>) {
+    function stringifyTaskPositions(
+      list: Array<number>,
+      ident: number,
+    ): string {
       return list
         .map((position) => tasks.get(position))
         .filter((task) => task !== undefined)
-        .map((task) => task.rawText)
+        .map((task) => {
+          return (
+            " ".repeat(ident * 2) +
+            task.rawText +
+            "\n" +
+            stringifyTaskPositions(task.children, ident + 1)
+          );
+        })
         .join("\n");
     }
 
     let output = "# unprioritized\n";
-    output += stringifyTaskPositions(unprioritizedTasks);
+    output += stringifyTaskPositions(unprioritizedTasks, 0);
     output += "# prioritized\n";
-    output += stringifyTaskPositions(prioritizedUndoneTasks);
+    output += stringifyTaskPositions(prioritizedUndoneTasks, 0);
     output += "# done\n";
-    output += stringifyTaskPositions(doneTasks);
+    output += stringifyTaskPositions(doneTasks, 0);
 
     console.log(output);
 
