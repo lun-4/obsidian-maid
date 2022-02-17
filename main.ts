@@ -677,27 +677,20 @@ export default class MaidPlugin extends Plugin {
     console.log(prioritizedUndoneTasks);
     console.log(doneTasks);
 
+    function stringifyTaskPositions(list: Array<number>) {
+      return list
+        .map((position) => tasks.get(position))
+        .filter((task) => task !== undefined)
+        .map((task) => task.rawText)
+        .join("\n");
+    }
+
     let output = "# unprioritized\n";
-
-    for (const taskPosition of unprioritizedTasks) {
-      const task = tasks.get(taskPosition);
-      assert(task !== undefined);
-      output += task.rawText + "\n";
-    }
-
+    output += stringifyTaskPositions(unprioritizedTasks);
     output += "# prioritized\n";
-    for (const taskPosition of prioritizedUndoneTasks) {
-      const task = tasks.get(taskPosition);
-      assert(task !== undefined);
-      output += task.rawText + "\n";
-    }
-
+    output += stringifyTaskPositions(prioritizedUndoneTasks);
     output += "# done\n";
-    for (const taskPosition of doneTasks) {
-      const task = tasks.get(taskPosition);
-      assert(task !== undefined);
-      output += task.rawText + "\n";
-    }
+    output += stringifyTaskPositions(doneTasks);
 
     console.log(output);
 
