@@ -611,12 +611,10 @@ export default class MaidPlugin extends Plugin {
       }
     }
 
-    prioritizedUndoneTasks.sort((firstTaskPosition, secondTaskPosition) => {
-      const firstTask = tasks.get(firstTaskPosition);
-      const secondTask = tasks.get(secondTaskPosition);
-      assert(firstTask !== undefined);
-      assert(secondTask !== undefined);
-
+    function priorityCompare(
+      firstTaskPosition: number,
+      secondTaskPosition: number,
+    ): number | null {
       const firstTaskPriority = tasks.fetchPriority(firstTaskPosition);
       const secondTaskPriority = tasks.fetchPriority(secondTaskPosition);
 
@@ -628,34 +626,40 @@ export default class MaidPlugin extends Plugin {
         return 1;
       }
 
-      // if same priority, use line position
+      return null;
+    }
 
-      if (firstTask.position < secondTask.position) {
+    function positionComparison(
+      firstTaskPosition: number,
+      secondTaskPosition: number,
+    ): number {
+      if (firstTaskPosition < secondTaskPosition) {
         return -1;
       }
 
-      if (firstTask.position > secondTask.position) {
+      if (firstTaskPosition > secondTaskPosition) {
         return 1;
       }
 
       // they are the same task (impossible)
       return 0;
+    }
+
+    prioritizedUndoneTasks.sort((firstTaskPosition, secondTaskPosition) => {
+      const priorityResult = priorityCompare(
+        firstTaskPosition,
+        secondTaskPosition,
+      );
+      if (priorityResult !== null) return priorityResult;
+      // if same priority, use line position
+      return positionComparison(firstTaskPosition, secondTaskPosition);
+    });
+
+    unprioritizedTasks.sort((firstTaskPosition, secondTaskPosition) => {
+      return positionComparison(firstTaskPosition, secondTaskPosition);
     });
 
     /*
-
-    unprioritizedTasks.sort((firstTask, secondTask) => {
-      if (firstTask.position < secondTask.position) {
-        return -1;
-      }
-
-      if (firstTask.position > secondTask.position) {
-        return 1;
-      }
-
-      // they are the same task (impossible)
-      return 0;
-    });
 
     doneTasks.sort((firstTask, secondTask) => {
       if (firstTask.doneAt < secondTask.doneAt) {
