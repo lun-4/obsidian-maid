@@ -606,7 +606,7 @@ export default class MaidPlugin extends Plugin {
         unprioritizedTasks.push(taskPosition);
       } else if (task.state == " " && task.priority !== undefined) {
         prioritizedUndoneTasks.push(taskPosition);
-      } else if (task.state == "x") {
+      } else {
         doneTasks.push(taskPosition);
       }
     }
