@@ -698,14 +698,14 @@ export default class MaidPlugin extends Plugin {
             stringifyTaskPositions(task.children, ident + 1)
           );
         })
-        .join("\n");
+        .join("");
     }
 
     let output = "# unprioritized\n";
     output += stringifyTaskPositions(unprioritizedTasks, 0);
-    output += "# prioritized\n";
+    output += "\n# prioritized\n";
     output += stringifyTaskPositions(prioritizedUndoneTasks, 0);
-    output += "# done\n";
+    output += "\n# done\n";
     output += stringifyTaskPositions(doneTasks, 0);
 
     console.log(output);
