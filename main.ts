@@ -14,7 +14,7 @@ import {
 
 const PRIO_REGEX = /%prio=(\d+)/g;
 const MARKDOWN_LIST_ELEMENT_REGEX = /[-+*]?(?: \d+\.)? \[(.)\]/g;
-const MAID_TASK_CLOSE_METADATA = / \(Done at \d\d\d\d-\d\d-\d\d\)/g;
+const MAID_TASK_CLOSE_METADATA = / \(Done at (\d\d\d\d-\d\d-\d\d)\)/g;
 
 function assert(value: unknown, message?: string): asserts value {
   if (!value) throw new Error("assertion failed:" + message);
@@ -512,14 +512,14 @@ export default class MaidPlugin extends Plugin {
 
       const priorityMatch = rawText.matchAll(PRIO_REGEX).next().value;
       let rawPriority = undefined;
-      if (priorityMatch) {
+      if (priorityMatch !== undefined) {
         rawPriority = parseInt(priorityMatch[1], 10);
       }
 
       const rawDoneAtValue = rawText.matchAll(MAID_TASK_CLOSE_METADATA).next()
         .value;
       let rawDoneAt = undefined;
-      if (rawDoneAtValue) {
+      if (rawDoneAtValue !== undefined) {
         rawDoneAt = rawDoneAtValue[1];
       }
 
