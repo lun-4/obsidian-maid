@@ -687,6 +687,8 @@ export default class MaidPlugin extends Plugin {
     console.log(prioritizedUndoneTasks);
     console.log(doneTasks);
 
+    let touchedTasks: Array<number> = [];
+
     function stringifyTaskPositions(
       list: Array<number>,
       ident: number,
@@ -695,6 +697,7 @@ export default class MaidPlugin extends Plugin {
         .map((position) => tasks.get(position))
         .filter((task) => task !== undefined)
         .map((task) => {
+          touchedTasks.push(task.position);
           return (
             "\t".repeat(ident * 2) +
             task.rawText +
@@ -712,7 +715,16 @@ export default class MaidPlugin extends Plugin {
     output += "\n# done\n";
     output += stringifyTaskPositions(doneTasks, 0);
 
+    const finalTaskIterator = tasks.rawMap[Symbol.iterator]();
+    let reorderError = false;
+    for (const [taskPosition, _] of finalTaskIterator) {
+      if (!touchedTasks.contains(taskPosition)) {
+        reorderError = true;
+      }
+    }
     console.log(output);
+    console.log("were all previous tasks written to output?", !reorderError);
+    assert(!reorderError);
 
     //editor.replaceRange(
     //  output,
