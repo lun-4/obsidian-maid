@@ -692,7 +692,7 @@ export default class MaidPlugin extends Plugin {
         .filter((task) => task !== undefined)
         .map((task) => {
           return (
-            " ".repeat(ident * 2) +
+            "\t".repeat(ident * 2) +
             task.rawText +
             "\n" +
             stringifyTaskPositions(task.children, ident + 1)
