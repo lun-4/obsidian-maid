@@ -599,7 +599,10 @@ export default class MaidPlugin extends Plugin {
       // only calculate top tasks
       if (task.parentTaskPosition !== undefined) continue;
 
-      if (task.state == " " && task.priority === undefined) {
+      if (
+        (task.state === " " || task.state === undefined) &&
+        task.priority === undefined
+      ) {
         unprioritizedTasks.push(taskPosition);
       } else if (task.state == " " && task.priority !== undefined) {
         prioritizedUndoneTasks.push(taskPosition);
