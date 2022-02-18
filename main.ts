@@ -659,29 +659,22 @@ export default class MaidPlugin extends Plugin {
       return positionComparison(firstTaskPosition, secondTaskPosition);
     });
 
-    /*
+    doneTasks.sort((firstTaskPosition, secondTaskPosition) => {
+      const firstTask = tasks.get(firstTaskPosition);
+      const secondTask = tasks.get(secondTaskPosition);
 
-    doneTasks.sort((firstTask, secondTask) => {
-      if (firstTask.doneAt < secondTask.doneAt) {
-        return -1;
-      }
-      if (firstTask.doneAt > secondTask.doneAt) {
-        return 1;
-      }
-
-      // if they're done in the same day, use task line number
-      if (firstTask.position < secondTask.position) {
-        return -1;
-      }
-      if (firstTask.position > secondTask.position) {
-        return 1;
+      if (firstTask.doneAt !== undefined && secondTask.doneAt !== undefined) {
+        assert(false, "todo parse doneAt into a comparable timestamp");
+        if (firstTask.doneAt < secondTask.doneAt) {
+          return -1;
+        }
+        if (firstTask.doneAt > secondTask.doneAt) {
+          return 1;
+        }
       }
 
-      // they are the same task (impossible)
-      return 0;
+      return positionComparison(firstTaskPosition, secondTaskPosition);
     });
-
-    */
 
     console.log(unprioritizedTasks);
     console.log(prioritizedUndoneTasks);
