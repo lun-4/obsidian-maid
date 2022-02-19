@@ -73,7 +73,7 @@ class Task {
   rawText: string;
   state?: string;
   priority?: number;
-  doneAt?: string;
+  doneAt?: Date;
   parentTaskPosition?: number;
   children: Array<number>; //array of task positions
 
@@ -82,7 +82,7 @@ class Task {
     rawText: string,
     state?: string,
     priority?: number,
-    doneAt?: string,
+    doneAt?: Date,
     parentTaskPosition?: number,
   ) {
     this.position = position;
@@ -120,6 +120,12 @@ class TaskMap {
     return task;
   }
 
+  // calculate a task's priority using a defined algorithm
+  // (that accounts for the user's settings)
+  //
+  // do NOT use task.rawPriority for ordering as rawPriority can be undefined.
+  //
+  // this function will always return a value!
   fetchPriority(position: number): number {
     const task = this.rawMap.get(position);
     if (task === undefined) return this.settings.defaultPriority;
@@ -510,17 +516,20 @@ export default class MaidPlugin extends Plugin {
         listItem.position.end.offset,
       );
 
-      const priorityMatch = rawText.matchAll(PRIO_REGEX).next().value;
-      let rawPriority = undefined;
+      const priorityMatch: Array<string> | undefined = rawText
+        .matchAll(PRIO_REGEX)
+        .next().value;
+      let rawPriority: number | undefined = undefined;
       if (priorityMatch !== undefined) {
         rawPriority = parseInt(priorityMatch[1], 10);
       }
 
-      const rawDoneAtValue = rawText.matchAll(MAID_TASK_CLOSE_METADATA).next()
-        .value;
-      let rawDoneAt = undefined;
+      const rawDoneAtValue: Array<string> | undefined = rawText
+        .matchAll(MAID_TASK_CLOSE_METADATA)
+        .next().value;
+      let rawDoneAt: Date | undefined = undefined;
       if (rawDoneAtValue !== undefined) {
-        rawDoneAt = rawDoneAtValue[1];
+        rawDoneAt = new Date(rawDoneAtValue[1]);
       }
 
       const taskPosition = listItem.position.start.line;
@@ -558,27 +567,26 @@ export default class MaidPlugin extends Plugin {
     // - [ ] task 3 %prio=3
     // - [x] done %prio=3
     //
-    // we want to have ordered tasks by their priority, with a section to
-    // unprioritized tasks
-    //
-    // - [ ] task 3 %prio=3
-    // - [ ] task 2 %prio=1
-    // - [ ] task 1 %prio=0
-    //    - [ ] subtask 1 %prio=4
+    // we want to have 3 task buckets
     //
     // # unprioritized
     //
     // - [ ] task unknown
     //    - [ ] another unknown task
     //
-    // # done
+    // # prioritized (by the root task's priority, not child tasks.)
+    //
+    // - [ ] task 3 %prio=3
+    // - [ ] task 2 %prio=1
+    // - [ ] task 1 %prio=0
+    //    - [ ] subtask 1 %prio=4
+    //
+    // # done (ordered by doneAt)
     //
     // - [x] done %prio=3
 
     // to do that, we need to parse the entire todo tree, find out the top
     // level tasks, and reorder them...
-
-    // draft code to figure out how todo list api will look like
 
     // tasks has a list of top level tasks only
     // children tasks inside each task object
@@ -663,13 +671,24 @@ export default class MaidPlugin extends Plugin {
       const firstTask = tasks.get(firstTaskPosition);
       const secondTask = tasks.get(secondTaskPosition);
 
+      // always prefer doneAt instead of line number
+      //
+      // if a task was done just now, sort it to the 1st element
       if (firstTask.doneAt !== undefined && secondTask.doneAt !== undefined) {
-        assert(false, "todo parse doneAt into a comparable timestamp");
+        // from mdn docs:
+        //
+        // compareFunction(a, b) return value sort order
+        // > 0  sort b before a
+        // < 0  sort a before b
+        // === 0  keep original order of a and b
+        //
+        // now we want to order by DESC
+        // that means if firstTask is less (older) than secondTsk, we MUST say secondTask comes first in the array
         if (firstTask.doneAt < secondTask.doneAt) {
-          return -1;
+          return 1;
         }
         if (firstTask.doneAt > secondTask.doneAt) {
-          return 1;
+          return -1;
         }
       }
 
