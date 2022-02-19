@@ -403,6 +403,15 @@ export default class MaidPlugin extends Plugin {
           if (this.isFileSafe) {
             console.log("file is not safe, waiting for metadata");
             this.isFileSafe = false;
+
+            setTimeout(() => {
+              if (!this.isFileSafe) {
+                // if this happens, try editing a new whitespace, seeing
+                // console logs to notice the 'metadata:changed' event, then
+                // move back to your normal mode of operations
+                console.warn("metadata cache timed out, danger!");
+              }
+            }, 3400);
           }
         },
       ),
