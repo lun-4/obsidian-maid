@@ -749,7 +749,7 @@ export default class MaidPlugin extends Plugin {
         .map((task) => {
           touchedTasks.push(task.position);
           return (
-            "\t".repeat(ident * 2) +
+            "\t".repeat(ident) +
             task.rawText +
             "\n" +
             stringifyTaskPositions(task.children, ident + 1)
