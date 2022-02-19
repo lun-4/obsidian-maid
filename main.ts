@@ -659,6 +659,7 @@ export default class MaidPlugin extends Plugin {
     let unprioritizedTasks = [];
     let prioritizedUndoneTasks = [];
     let doneTasks = [];
+    let weirdTasks = [];
 
     const taskIterator = tasks.rawMap[Symbol.iterator]();
     for (const [taskPosition, task] of taskIterator) {
@@ -673,8 +674,11 @@ export default class MaidPlugin extends Plugin {
         unprioritizedTasks.push(taskPosition);
       } else if (task.state == " " && task.priority !== undefined) {
         prioritizedUndoneTasks.push(taskPosition);
-      } else {
+      } else if (task.state !== undefined) {
         doneTasks.push(taskPosition);
+      } else {
+        // if all other checks fail, add to weirdTasks for proper triage
+        weirdTasks.push(taskPosition);
       }
     }
 
@@ -758,6 +762,7 @@ export default class MaidPlugin extends Plugin {
       return positionCompare(firstTaskPosition, secondTaskPosition);
     });
 
+    console.log("weirdTasks", weirdTasks);
     console.log("unprioritizedTasks", unprioritizedTasks);
     console.log("prioritizedUndoneTasks", prioritizedUndoneTasks);
     console.log("doneTasks", doneTasks);
@@ -785,7 +790,11 @@ export default class MaidPlugin extends Plugin {
         .join("");
     }
 
-    let output = "# unprioritized\n";
+    let output = "";
+
+    output += "# weird (bugs in task selection)\n";
+    output += stringifyTaskPositions(weirdTasks, 0);
+    output += "# unprioritized\n";
     output += stringifyTaskPositions(unprioritizedTasks, 0);
     output += "\n# prioritized\n";
     output += stringifyTaskPositions(prioritizedUndoneTasks, 0);
