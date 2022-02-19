@@ -202,6 +202,8 @@ interface MaidPluginSettings {
   statusBarActivity: boolean;
   statusBarDoneToday: boolean;
   statusBarRemaining: boolean;
+
+  reorderFeatureEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: MaidPluginSettings = {
@@ -212,6 +214,8 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarActivity: true,
   statusBarDoneToday: true,
   statusBarRemaining: false,
+
+  reorderFeatureEnabled: false,
 };
 
 class MaidSettingTab extends PluginSettingTab {
@@ -321,6 +325,24 @@ class MaidSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    containerEl.createEl("h3", { text: "Feature toggles" });
+
+    new Setting(containerEl)
+      .setName("Enable task reorder")
+      .setDesc(
+        "THIS FEATURE CAN DESTROY PARTS OF YOUR TODO LIST. BEWARE OF ENABLING THIS FEATURE. READ THE CODE BEFORE ENABLING THIS FEATURE.",
+      )
+      .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
+        toggle
+          .setValue(this.plugin.settings.reorderFeatureEnabled)
+          .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
+            this.plugin.settings.reorderFeatureEnabled = value;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }
 
@@ -390,6 +412,7 @@ export default class MaidPlugin extends Plugin {
       name: "Roll random task by priority",
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
+        // TODO refactor to use TaskMap
         const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
         if (cachedMetadata === null) {
           console.log("no file in cache, ignoring task roll");
@@ -464,6 +487,7 @@ export default class MaidPlugin extends Plugin {
       name: "Toggle completeness of a task",
       hotkeys: [{ modifiers: ["Ctrl"], key: "m" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
+        // TODO refactor to use TaskMap
         const cursor = editor.getCursor();
 
         const wantedLine = editor.getLine(cursor.line);
@@ -557,6 +581,11 @@ export default class MaidPlugin extends Plugin {
   }
 
   async reorderTaskList(editor: Editor, view: MarkdownView) {
+    // NOTE: this code WILL NOT CARE about text outside of the markdown tree.
+    // IT WILL DESTROY SUCH TEXT AFTER REORDERING.
+    // DO NOT USE THIS FEATURE IF YOUR TODO LIST DOES NOT FOLLOW MY FORMAT.
+    // THIS PLUGIN IS OPINIONATED. NAMELY, IT HAS MY OPINION.
+    //
     // from an unorganized task list, e.g
     //
     // - [ ] task 1 %prio=0
@@ -585,6 +614,12 @@ export default class MaidPlugin extends Plugin {
     //
     // - [x] done %prio=3
 
+    assert(this.settings !== undefined);
+    if (!this.settings.reorderFeatureEnabled) {
+      console.log("reorders are disabled, please go to settings");
+      return;
+    }
+
     // to do that, we need to parse the entire todo tree, find out the top
     // level tasks, and reorder them...
 
@@ -593,18 +628,15 @@ export default class MaidPlugin extends Plugin {
     const tasks = this.makeTaskMap(view);
 
     // we need to find out the line reorderings we'll have to do, but first
-    // we also need to find out the high level splits on each task group.
-    //
-    // prioritizedUndoneTasks must be reordered by priority
-    let prioritizedUndoneTasks = [];
-    // unprioritized tasks must be reordered by their original taskPosition
+    // we also need to find out where each root task will go in the buckets.
     let unprioritizedTasks = [];
-    // done tasks must be reordered by (Done at X)
+    let prioritizedUndoneTasks = [];
     let doneTasks = [];
 
     const taskIterator = tasks.rawMap[Symbol.iterator]();
     for (const [taskPosition, task] of taskIterator) {
-      // only calculate top tasks
+      // only care about root tasks in the tree. (then add the
+      // children tasks when we're generating output)
       if (task.parentTaskPosition !== undefined) continue;
 
       if (
@@ -637,7 +669,7 @@ export default class MaidPlugin extends Plugin {
       return null;
     }
 
-    function positionComparison(
+    function positionCompare(
       firstTaskPosition: number,
       secondTaskPosition: number,
     ): number {
@@ -653,6 +685,14 @@ export default class MaidPlugin extends Plugin {
       return 0;
     }
 
+    // unprioritizedTasks: sort by position
+    // prioritizedUndoneTasks: sort by priority, then by position
+    // doneTasks: sort by doneAt, then by position
+
+    unprioritizedTasks.sort((firstTaskPosition, secondTaskPosition) => {
+      return positionCompare(firstTaskPosition, secondTaskPosition);
+    });
+
     prioritizedUndoneTasks.sort((firstTaskPosition, secondTaskPosition) => {
       const priorityResult = priorityCompare(
         firstTaskPosition,
@@ -660,11 +700,7 @@ export default class MaidPlugin extends Plugin {
       );
       if (priorityResult !== null) return priorityResult;
       // if same priority, use line position
-      return positionComparison(firstTaskPosition, secondTaskPosition);
-    });
-
-    unprioritizedTasks.sort((firstTaskPosition, secondTaskPosition) => {
-      return positionComparison(firstTaskPosition, secondTaskPosition);
+      return positionCompare(firstTaskPosition, secondTaskPosition);
     });
 
     doneTasks.sort((firstTaskPosition, secondTaskPosition) => {
@@ -692,13 +728,15 @@ export default class MaidPlugin extends Plugin {
         }
       }
 
-      return positionComparison(firstTaskPosition, secondTaskPosition);
+      return positionCompare(firstTaskPosition, secondTaskPosition);
     });
 
-    console.log(unprioritizedTasks);
-    console.log(prioritizedUndoneTasks);
-    console.log(doneTasks);
+    console.log("unprioritizedTasks", unprioritizedTasks);
+    console.log("prioritizedUndoneTasks", prioritizedUndoneTasks);
+    console.log("doneTasks", doneTasks);
 
+    // while generating output, keep track of which tasks we have
+    // added to such. assert we have all the tasks we parsed in the output
     let touchedTasks: Array<number> = [];
 
     function stringifyTaskPositions(
@@ -736,7 +774,10 @@ export default class MaidPlugin extends Plugin {
     }
     console.log(output);
     console.log("were all previous tasks written to output?", !reorderError);
-    assert(!reorderError);
+    assert(
+      !reorderError,
+      "an algorithmic error has occoured. most likely a bug",
+    );
 
     //editor.replaceRange(
     //  output,
