@@ -401,14 +401,8 @@ export default class MaidPlugin extends Plugin {
         "editor-change",
         (editor: Editor, markdownView: MarkdownView) => {
           if (this.isFileSafe) {
-            console.log("file is not safe");
+            console.log("file is not safe, waiting for metadata");
             this.isFileSafe = false;
-            setTimeout(() => {
-              if (!this.isFileSafe) {
-                console.log("file is safe");
-                this.isFileSafe = true;
-              }
-            }, 1500);
           }
         },
       ),
@@ -416,8 +410,11 @@ export default class MaidPlugin extends Plugin {
 
     this.registerEvent(
       this.app.metadataCache.on("changed", (file: TFile) => {
-        this.isFileSafe = true;
         console.log("metadata:changed", file);
+        if (!this.isFileSafe) {
+          console.log("file is safe");
+          this.isFileSafe = true;
+        }
         if (this.lastRefreshedFile === file) {
           this.refreshStatusBar(file);
         }
