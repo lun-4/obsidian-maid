@@ -690,11 +690,11 @@ export default class MaidPlugin extends Plugin {
       const secondTaskPriority = tasks.fetchPriority(secondTaskPosition);
 
       if (firstTaskPriority < secondTaskPriority) {
-        return -1;
+        return 1;
       }
 
       if (firstTaskPriority > secondTaskPriority) {
-        return 1;
+        return -1;
       }
 
       return null;
