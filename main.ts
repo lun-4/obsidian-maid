@@ -779,11 +779,14 @@ export default class MaidPlugin extends Plugin {
       "an algorithmic error has occoured. most likely a bug",
     );
 
-    //editor.replaceRange(
-    //  output,
-    //  { line: 0, ch: 0 },
-    //  { line: lastLine, ch: lastCharacter },
-    //);
+    const lastLine = editor.lastLine();
+    const lastChar = editor.getLine(lastLine).length;
+
+    editor.replaceRange(
+      output,
+      { line: 0, ch: 0 },
+      { line: lastLine, ch: lastChar },
+    );
   }
 
   async loadSettings() {
