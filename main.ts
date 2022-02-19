@@ -792,8 +792,10 @@ export default class MaidPlugin extends Plugin {
 
     let output = "";
 
-    output += "# weird (bugs in task selection)\n";
-    output += stringifyTaskPositions(weirdTasks, 0);
+    if (weirdTasks.length > 0) {
+      output += "# weird (bugs in task selection)\n";
+      output += stringifyTaskPositions(weirdTasks, 0);
+    }
     output += "# unprioritized\n";
     output += stringifyTaskPositions(unprioritizedTasks, 0);
     output += "\n# prioritized\n";
