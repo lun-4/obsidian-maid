@@ -368,6 +368,7 @@ export default class MaidPlugin extends Plugin {
   settings?: MaidPluginSettings;
   statusBarItemEl?: HTMLElement;
   lastRefreshedFile?: TFile | TAbstractFile;
+  isFileSafe: boolean = false;
 
   async onload() {
     await this.loadSettings();
@@ -381,6 +382,8 @@ export default class MaidPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("file-open", (file: TFile | null) => {
         if (file !== null) {
+          console.log("file-open", file);
+          this.isFileSafe = true;
           this.refreshStatusBar(file);
         }
       }),
@@ -388,13 +391,36 @@ export default class MaidPlugin extends Plugin {
 
     this.registerEvent(
       this.app.vault.on("modify", (file: TAbstractFile) => {
+        console.log("vault:modify", file);
         this.refreshStatusBar(file);
       }),
     );
 
     this.registerEvent(
+      this.app.workspace.on(
+        "editor-change",
+        (editor: Editor, markdownView: MarkdownView) => {
+          if (this.isFileSafe) {
+            console.log("file is not safe");
+            this.isFileSafe = false;
+            setTimeout(() => {
+              if (!this.isFileSafe) {
+                console.log("file is safe");
+                this.isFileSafe = true;
+              }
+            }, 1500);
+          }
+        },
+      ),
+    );
+
+    this.registerEvent(
       this.app.metadataCache.on("changed", (file: TFile) => {
-        if (this.lastRefreshedFile === file) this.refreshStatusBar(file);
+        this.isFileSafe = true;
+        console.log("metadata:changed", file);
+        if (this.lastRefreshedFile === file) {
+          this.refreshStatusBar(file);
+        }
       }),
     );
 
@@ -523,6 +549,10 @@ export default class MaidPlugin extends Plugin {
   }
 
   makeTaskMap(view: MarkdownView): TaskMap {
+    if (!this.isFileSafe) {
+      console.warn("file is unsafe, please wait");
+      throw new Error("file is unsafe, please wait");
+    }
     const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
     assert(cachedMetadata !== null);
     const listItems = cachedMetadata.listItems;
