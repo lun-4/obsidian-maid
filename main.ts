@@ -806,7 +806,7 @@ export default class MaidPlugin extends Plugin {
     if (!this.settings.statusBarRemaining) return;
     const cachedMetadata = this.app.metadataCache.getFileCache(file as TFile);
     assert(cachedMetadata !== null);
-    assert(cachedMetadata.listItems !== undefined);
+    if (cachedMetadata.listItems === undefined) return;
 
     // this'll be off slightly since it's cached
     const itemsLeft = cachedMetadata.listItems.filter((x) => {
