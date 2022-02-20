@@ -346,24 +346,6 @@ class MaidSettingTab extends PluginSettingTab {
   }
 }
 
-class TestModal extends Modal {
-  plugin: MaidPlugin;
-  constructor(plugin: MaidPlugin) {
-    super(plugin.app);
-    this.plugin = plugin;
-  }
-
-  onOpen() {
-    let { contentEl } = this;
-    contentEl.setText("Woah!");
-  }
-
-  onClose() {
-    let { contentEl } = this;
-    contentEl.empty();
-  }
-}
-
 export default class MaidPlugin extends Plugin {
   settings?: MaidPluginSettings;
   statusBarItemEl?: HTMLElement;
