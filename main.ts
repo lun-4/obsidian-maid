@@ -432,7 +432,7 @@ export default class MaidPlugin extends Plugin {
 
     this.addCommand({
       id: "reorder-task",
-      name: "Organize task list by priority",
+      name: "Organize task list",
       hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.reorderTaskList(editor, view);
@@ -444,73 +444,7 @@ export default class MaidPlugin extends Plugin {
       name: "Roll random task by priority",
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        // TODO refactor to use TaskMap
-        const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
-        if (cachedMetadata === null) {
-          console.log("no file in cache, ignoring task roll");
-          return;
-        }
-        const listItems = cachedMetadata.listItems;
-        assert(listItems !== undefined);
-
-        const priorities: PriorityMap = {};
-        for (const listData of listItems) {
-          const pos = listData.position;
-          const lineNumber = pos.start.line;
-
-          assert(this.settings !== undefined);
-
-          // this assumes that there's one task per line.
-          // if someone manages to get more than one task on a line, this will break!
-          priorities[lineNumber] = getPriority(
-            lineNumber,
-            priorities,
-            listItems,
-            this.settings,
-            editor,
-            view,
-          );
-        }
-
-        let prio_pairs: Array<Array<number>> = Object.entries(priorities)
-          .map((x) => [parseInt(x[0]), x[1]]) // Object.entries makes the key a string?
-          .filter((x) => {
-            // shortcircuit checks because regex computing is expensive
-            // and precious
-            const isNegativeWeight = x[1] < 0;
-            if (isNegativeWeight) return false;
-
-            const line = editor.getLine(x[0]);
-            const taskMatch = line
-              .trim()
-              .matchAll(MARKDOWN_LIST_ELEMENT_REGEX)
-              .next().value;
-            if (!taskMatch) return false;
-
-            const isFinishedTask = taskMatch[1] !== " ";
-            if (isFinishedTask) return false;
-
-            return true;
-          });
-
-        let total_prio = prio_pairs.map((x) => x[1]).reduce((a, b) => a + b);
-        if (total_prio < 1) return;
-
-        let index = Math.floor(Math.random() * total_prio);
-        let choice: number | null = null;
-
-        for (const pair of prio_pairs) {
-          let [line_index, priority] = pair as Array<number>;
-          if (priority > index) {
-            choice = line_index;
-            break;
-          }
-          index -= priority;
-        }
-
-        if (choice !== null) {
-          editor.setCursor(choice);
-        }
+        this.rollTask(editor, view);
       },
     });
 
@@ -519,7 +453,6 @@ export default class MaidPlugin extends Plugin {
       name: "Toggle completeness of a task",
       hotkeys: [{ modifiers: ["Ctrl"], key: "m" }],
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        // TODO refactor to use TaskMap
         const cursor = editor.getCursor();
 
         const wantedLine = editor.getLine(cursor.line);
@@ -614,6 +547,39 @@ export default class MaidPlugin extends Plugin {
     }
 
     return map;
+  }
+
+  async rollTask(editor: Editor, view: MarkdownView) {
+    const tasks = this.makeTaskMap(view);
+
+    let prio_pairs: Array<Array<number>> = [];
+    tasks.rawMap.forEach((task, taskPosition, _tasks) => {
+      const isFinished = task.state !== " ";
+      if (isFinished) return false;
+
+      const priority = tasks.fetchPriority(taskPosition);
+      if (priority < 0) return false;
+      prio_pairs.push([taskPosition, priority]);
+    });
+
+    let total_prio = prio_pairs.map((x) => x[1]).reduce((a, b) => a + b);
+    if (total_prio < 1) return;
+
+    let index = Math.floor(Math.random() * total_prio);
+    let choice: number | null = null;
+
+    for (const pair of prio_pairs) {
+      let [line_index, priority] = pair as Array<number>;
+      if (priority > index) {
+        choice = line_index;
+        break;
+      }
+      index -= priority;
+    }
+
+    if (choice !== null) {
+      editor.setCursor(choice);
+    }
   }
 
   async reorderTaskList(editor: Editor, view: MarkdownView) {
