@@ -147,53 +147,6 @@ class TaskMap {
   }
 }
 
-function getPriority(
-  lineNumber: number,
-  priorities: PriorityMap,
-  listItems: ListItemCache[],
-  settings: MaidPluginSettings,
-  editor: Editor,
-  view: MarkdownView,
-): number {
-  const fileData = view.data;
-  // find ourselves from our line number
-  const listData = listItems.find((x) => x.position.start.line === lineNumber);
-
-  assert(listData !== undefined);
-
-  const pos = listData.position;
-  const listEntry = fileData.substring(pos.start.offset, pos.end.offset);
-
-  // test if we have a priority set
-  const match = listEntry.matchAll(PRIO_REGEX).next().value;
-  if (match) {
-    return parseInt(match[1], 10);
-  } else {
-    if (!settings.priorityInheritance) return settings.defaultPriority;
-
-    // listData.parent can either be positive or negative.
-    // if it's positive, we're a child of another task,
-    // and the value is the line number of the parent.
-    //
-    // if it's negative, we're in a root level list,
-    // so we should return the default priority.
-    if (listData.parent > 0) {
-      // because we're going down the tasks top-to-bottom,
-      // our parent should already be in the priority list
-      return getPriority(
-        listData.parent,
-        priorities,
-        listItems,
-        settings,
-        editor,
-        view,
-      );
-    } else {
-      return settings.defaultPriority;
-    }
-  }
-}
-
 interface MaidPluginSettings {
   defaultPriority: number;
   priorityInheritance: boolean;
