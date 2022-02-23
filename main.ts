@@ -13,6 +13,10 @@ import {
 } from "obsidian";
 
 const PRIO_REGEX = /%prio=(\d+)/g;
+// %due=2020-12-12
+// %due=2022-02-21T00:36:42
+// %due=2022-02-21T00:36
+const DUE_TAG_REGEX = /%due=(\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:(\d{2})?)?)/g;
 const MARKDOWN_LIST_ELEMENT_REGEX = /[-+*]?(?: \d+\.)? \[(.)\]/g;
 const MAID_TASK_CLOSE_METADATA = / \(Done at (\d\d\d\d-\d\d-\d\d)\)/g;
 
@@ -74,6 +78,7 @@ class Task {
   state?: string;
   priority?: number;
   doneAt?: Date;
+  dueAt?: Date;
   parentTaskPosition?: number;
   children: Array<number>; //array of task positions
 
@@ -83,6 +88,7 @@ class Task {
     state?: string,
     priority?: number,
     doneAt?: Date,
+    dueAt?: Date,
     parentTaskPosition?: number,
   ) {
     this.position = position;
@@ -90,6 +96,7 @@ class Task {
     this.priority = priority;
     this.rawText = rawText;
     this.doneAt = doneAt;
+    this.dueAt = dueAt;
     this.parentTaskPosition = parentTaskPosition;
     this.children = [];
   }
@@ -460,6 +467,14 @@ export default class MaidPlugin extends Plugin {
         rawDoneAt = new Date(rawDoneAtValue[1]);
       }
 
+      const dueMatch: Array<string> | undefined = rawText
+        .matchAll(DUE_TAG_REGEX)
+        .next().value;
+      let dueAt: Date | undefined = undefined;
+      if (dueMatch !== undefined) {
+        dueAt = new Date(dueMatch[1]);
+      }
+
       const taskPosition = listItem.position.start.line;
       let parentTaskPosition = undefined;
       if (listItem.parent > 0) {
@@ -471,6 +486,7 @@ export default class MaidPlugin extends Plugin {
         listItem.task,
         rawPriority,
         rawDoneAt,
+        dueAt,
         parentTaskPosition,
       );
       if (parentTaskPosition !== undefined) {
@@ -634,15 +650,93 @@ export default class MaidPlugin extends Plugin {
       return positionCompare(firstTaskPosition, secondTaskPosition);
     });
 
-    prioritizedUndoneTasks.sort((firstTaskPosition, secondTaskPosition) => {
-      const priorityResult = priorityCompare(
-        firstTaskPosition,
-        secondTaskPosition,
-      );
-      if (priorityResult !== null) return priorityResult;
-      // if same priority, use line position
-      return positionCompare(firstTaskPosition, secondTaskPosition);
-    });
+    function median(values: Array<number>): number {
+      if (values.length === 0) throw new Error("No inputs");
+
+      values.sort((a, b) => a - b);
+
+      var half = Math.floor(values.length / 2);
+      if (values.length % 2) return values[half];
+      return (values[half - 1] + values[half]) / 2.0;
+    }
+
+    // optimizing code by precomputing priorities
+    const priorities = prioritizedUndoneTasks.map((position) => [
+      position,
+      tasks.fetchPriority(position),
+    ]);
+
+    const priorityMedian = median(
+      priorities.map(([position, priority]) => priority),
+    );
+    const lowPriorityTasks = priorities.filter(
+      ([position, priority]) => priority <= priorityMedian,
+    );
+    const highPriorityTasks = priorities.filter(
+      ([position, priority]) => priority > priorityMedian,
+    );
+
+    function prioritizedTaskSort(
+      [thisPosition, thisPriority]: number[],
+      [otherPosition, otherPriority]: number[],
+    ) {
+      // sort by dueAt first
+      //
+      // also always provide a default dueAt so that if i'm comparing
+      // a task that has dueAt, and a task that doesn't, the one that has it
+      // always wins
+
+      const thisTask = tasks.get(thisPosition);
+      const otherTask = tasks.get(otherPosition);
+
+      const isSamePriority = thisPriority == otherPriority;
+      const isOnlyOneDueAt =
+        (thisTask.dueAt === undefined && otherTask.dueAt !== undefined) ||
+        (thisTask.dueAt !== undefined && otherTask.dueAt === undefined);
+
+      // if tasks are same priority AND one of them has a valid dueAt,
+      // use that one above the other, always.
+      if (isSamePriority && isOnlyOneDueAt) {
+        if (thisTask.dueAt !== undefined) {
+          return -1;
+        }
+        if (otherTask.dueAt !== undefined) {
+          return 1;
+        }
+      }
+
+      // if tasks are same priority but both provide dueAt, use dueAt
+      if (
+        isSamePriority &&
+        thisTask.dueAt !== undefined &&
+        otherTask.dueAt !== undefined
+      ) {
+        if (thisTask.dueAt < otherTask.dueAt) {
+          return -1;
+        }
+        if (thisTask.dueAt > otherTask.dueAt) {
+          return 1;
+        }
+      }
+
+      // if no dueAt on both AND different priority, use priority sort
+      if (thisPriority < otherPriority) {
+        return 1;
+      }
+
+      if (thisPriority > otherPriority) {
+        return -1;
+      }
+
+      // if same priority, and cant compare by dueAt, use line position
+      return positionCompare(thisPosition, otherPosition);
+    }
+
+    lowPriorityTasks.sort(prioritizedTaskSort);
+    highPriorityTasks.sort(prioritizedTaskSort);
+    const finalPrioritizedTasks = highPriorityTasks
+      .concat(lowPriorityTasks)
+      .map(([position, priority]) => position);
 
     doneTasks.sort((firstTaskPosition, secondTaskPosition) => {
       const firstTask = tasks.get(firstTaskPosition);
@@ -675,6 +769,7 @@ export default class MaidPlugin extends Plugin {
     console.log("weirdTasks", weirdTasks);
     console.log("unprioritizedTasks", unprioritizedTasks);
     console.log("prioritizedUndoneTasks", prioritizedUndoneTasks);
+    console.log("finalPrioritizedTasks", finalPrioritizedTasks);
     console.log("doneTasks", doneTasks);
 
     // while generating output, keep track of which tasks we have
@@ -709,7 +804,7 @@ export default class MaidPlugin extends Plugin {
     output += "# unprioritized\n";
     output += stringifyTaskPositions(unprioritizedTasks, 0);
     output += "\n# prioritized\n";
-    output += stringifyTaskPositions(prioritizedUndoneTasks, 0);
+    output += stringifyTaskPositions(finalPrioritizedTasks, 0);
     output += "\n# done\n";
     output += stringifyTaskPositions(doneTasks, 0);
 
