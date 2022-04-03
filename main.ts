@@ -373,6 +373,15 @@ export default class MaidPlugin extends Plugin {
     );
 
     this.addCommand({
+      id: "insert-current-date",
+      name: "Insert current date as an %at tag",
+      hotkeys: [{ modifiers: ["Ctrl"], key: "j" }],
+      editorCallback: (editor: Editor, view: MarkdownView) => {
+        this.insertCurrentDate(editor, view);
+      },
+    });
+
+    this.addCommand({
       id: "reorder-task",
       name: "Organize task list",
       hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
@@ -427,6 +436,33 @@ export default class MaidPlugin extends Plugin {
         }
       },
     });
+  }
+
+  async insertCurrentDate(editor: Editor, view: MarkdownView) {
+    const cursor = editor.getCursor();
+
+    const dateObj = new Date();
+    const dateString =
+      dateObj.getFullYear() +
+      "-" +
+      ("0" + (dateObj.getMonth() + 1)).slice(-2) +
+      "-" +
+      ("0" + dateObj.getDate()).slice(-2) +
+      "T" +
+      ("0" + dateObj.getHours()).slice(-2) +
+      ":" +
+      ("0" + dateObj.getMinutes()).slice(-2) +
+      ":" +
+      ("0" + dateObj.getSeconds()).slice(-2);
+
+    const datePosition = {
+      line: cursor.line,
+      ch: cursor.ch,
+    };
+
+    // putting the same position on both 'from' and 'to' parameters leads
+    // to the replaceRange inserting text instead.
+    editor.replaceRange("%at=" + dateString, datePosition, datePosition);
   }
 
   makeTaskMap(view: MarkdownView): TaskMap {
