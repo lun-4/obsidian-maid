@@ -19,27 +19,36 @@ const PRIO_REGEX = /%prio=(\d+)/g;
 const DUE_TAG_REGEX = /%due=(\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:(\d{2})?)?)/g;
 const MARKDOWN_LIST_ELEMENT_REGEX = /[-+*]?(?: \d+\.)? \[(.)\]/g;
 const MAID_TASK_CLOSE_METADATA = / \(Done at (\d\d\d\d-\d\d-\d\d)\)/g;
+const MAID_TASK_LEFT_METADATA = / \(Left at (\d\d\d\d-\d\d-\d\d)\)/g;
 
 function assert(value: unknown, message?: string): asserts value {
   if (!value) throw new Error("assertion failed:" + message);
 }
 
-function doneString(dateObj: Date): string {
-  const dateString =
-    dateObj.getFullYear() +
-    "-" +
-    ("0" + (dateObj.getMonth() + 1)).slice(-2) +
-    "-" +
-    ("0" + dateObj.getDate()).slice(-2);
+export const dateSuffixer: (title: string) => (dateObj: Date) => string = (
+  title,
+) => {
+  return (dateObj: Date) => {
+    const dateString =
+      dateObj.getFullYear() +
+      "-" +
+      ("0" + (dateObj.getMonth() + 1)).slice(-2) +
+      "-" +
+      ("0" + dateObj.getDate()).slice(-2);
 
-  return ` (Done at ${dateString})`;
-}
+    return ` (${title} at ${dateString})`;
+  };
+};
+
+const doneDateSuffixer = dateSuffixer("Done");
+const leftDateSuffixer = dateSuffixer("Left");
 
 function addDateToEditor(
   editor: Editor,
   cursor: EditorPosition,
   wantedLine: string,
   wantedDate: Date,
+  dateSuffixer: (dateObj: Date) => string,
 ) {
   const datePosition = {
     line: cursor.line,
@@ -48,7 +57,7 @@ function addDateToEditor(
 
   // putting the same position on both 'from' and 'to' parameters leads
   // to the replaceRange inserting text instead.
-  editor.replaceRange(doneString(wantedDate), datePosition, datePosition);
+  editor.replaceRange(dateSuffixer(wantedDate), datePosition, datePosition);
 }
 
 function removeDateToEditor(
@@ -430,7 +439,45 @@ export default class MaidPlugin extends Plugin {
 
         if (replaceWith == "x" && !dateMatch) {
           const now = new Date();
-          addDateToEditor(editor, cursor, wantedLine, now);
+          addDateToEditor(editor, cursor, wantedLine, now, doneDateSuffixer);
+        } else if (replaceWith == " " && dateMatchIterValue.value) {
+          removeDateToEditor(editor, cursor, dateMatch);
+        }
+      },
+    });
+
+    this.addCommand({
+      id: "toggle-task-leftness",
+      name: "Toggle leftness of a task (for when you've given up on it)",
+      hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "m" }],
+      editorCallback: (editor: Editor, view: MarkdownView) => {
+        const cursor = editor.getCursor();
+
+        const wantedLine = editor.getLine(cursor.line);
+        const firstMatch = wantedLine
+          .matchAll(MARKDOWN_LIST_ELEMENT_REGEX)
+          .next().value;
+        if (!firstMatch) return;
+
+        let replaceWith = firstMatch[1] === " " ? "N" : " ";
+        const charPosition: EditorPosition = {
+          line: cursor.line,
+          ch: firstMatch.index + 3,
+        };
+        const charPositionEnd: EditorPosition = {
+          line: cursor.line,
+          ch: firstMatch.index + 4,
+        };
+        editor.replaceRange(replaceWith, charPosition, charPositionEnd);
+
+        const dateMatchIterValue = wantedLine
+          .matchAll(MAID_TASK_LEFT_METADATA)
+          .next();
+        const dateMatch = dateMatchIterValue.value;
+
+        if (replaceWith == "N" && !dateMatch) {
+          const now = new Date();
+          addDateToEditor(editor, cursor, wantedLine, now, leftDateSuffixer);
         } else if (replaceWith == " " && dateMatchIterValue.value) {
           removeDateToEditor(editor, cursor, dateMatch);
         }
@@ -878,7 +925,7 @@ export default class MaidPlugin extends Plugin {
   }
 
   tasksDoneInDay(fileContent: string, day: Date): number {
-    const nowDoneString = doneString(day);
+    const nowDoneString = doneDateSuffixer(day);
     const doneRegex = new RegExp(
       // need to replace as () by themselves would be considered a
       // regex capturing group, and we don't want that
