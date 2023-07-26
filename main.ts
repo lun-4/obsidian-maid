@@ -489,18 +489,7 @@ export default class MaidPlugin extends Plugin {
     const cursor = editor.getCursor();
 
     const dateObj = new Date();
-    const dateString =
-      dateObj.getFullYear() +
-      "-" +
-      ("0" + (dateObj.getMonth() + 1)).slice(-2) +
-      "-" +
-      ("0" + dateObj.getDate()).slice(-2) +
-      "T" +
-      ("0" + dateObj.getHours()).slice(-2) +
-      ":" +
-      ("0" + dateObj.getMinutes()).slice(-2) +
-      ":" +
-      ("0" + dateObj.getSeconds()).slice(-2);
+    const dateString = dateObj.toISOString();
 
     const datePosition = {
       line: cursor.line,
