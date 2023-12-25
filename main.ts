@@ -11,7 +11,18 @@ import {
   TAbstractFile,
   Modal,
 } from "obsidian";
+import {
+  ViewUpdate,
+  PluginValue,
+  EditorView,
+  ViewPlugin,
+  WidgetType,
+  MatchDecorator,
+  Decoration,
+} from "@codemirror/view";
 
+
+const TAG_REGEX = /%(\w+)/g;
 const PRIO_REGEX = /%prio=(\d+)/g;
 // %due=2020-12-12
 // %due=2022-02-21T00:36:42
@@ -312,8 +323,58 @@ class MaidSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+
+    new Setting(containerEl)
+      .setName("Enable tag autocoloring")
+      .setDesc("colors pretty. requires restart to apply")
+      .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
+        toggle
+          .setValue(this.plugin.settings.autocolorTags)
+          .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
+            this.plugin.settings.autocolorTags = value;
+            await this.plugin.saveSettings();
+          });
+      });
+    
   }
 }
+
+const coolDeco = new MatchDecorator({
+  regexp: TAG_REGEX,
+  decoration: match => {
+    const tag = match[0];
+
+    return Decoration.mark({
+      inclusive: true,
+      attributes: {
+        style: "background-color: blue",
+      }
+    });
+  }
+});
+
+class AutocolorPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(view: EditorView) {
+    this.decorations = coolDeco.createDeco(view)
+  }
+
+  update(update: ViewUpdate) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = coolDeco.updateDeco(update, this.decorations)
+    }
+  }
+}
+
+const pluginSpec: PluginSpec<AutocolorPlugin> = {
+  decorations: (value: AutocolorPlugin) => value.decorations,
+};
+
+export const autocolorPlugin = ViewPlugin.fromClass(AutocolorPlugin, pluginSpec);
 
 export default class MaidPlugin extends Plugin {
   settings?: MaidPluginSettings;
@@ -483,6 +544,10 @@ export default class MaidPlugin extends Plugin {
         }
       },
     });
+
+    if (this.settings.autocolorTags) {
+      this.registerEditorExtension([autocolorPlugin]);
+    }
   }
 
   async insertCurrentDate(editor: Editor, view: MarkdownView) {
