@@ -52,7 +52,7 @@ function srgb_contrast(color) {
   let luminance = srgb_luminance(color);
   let background_luminance = srgb_luminance([0xff, 0xff, 0xff]);
   let brightest = Math.max(luminance, background_luminance);
-  let darkest = Math.max(luminance, background_luminance);
+  let darkest = Math.min(luminance, background_luminance);
   return (brightest + 0.05) / (darkest + 0.05);
 }
 
