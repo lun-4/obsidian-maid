@@ -1,3 +1,5 @@
+import { default as funny } from "pcg-random";
+
 // crc32 impl from https://stackoverflow.com/a/18639999
 function makeCRCTable() {
   var c;
@@ -48,12 +50,21 @@ function srgb_luminance(color) {
   return (out_vec[0] * 0.2126) + (out_vec[1] * 0.7152) + (out_vec[2] * 0.0722);
 }
 
+function raw_contrast(luminance, other_luminance) {
+  let brightest = Math.max(luminance, other_luminance);
+  let darkest = Math.min(luminance, other_luminance);
+  return (brightest + 0.05) / (darkest + 0.05);
+}
+
 function srgb_contrast(color) {
   let luminance = srgb_luminance(color);
-  let background_luminance = srgb_luminance([0xff, 0xff, 0xff]);
-  let brightest = Math.max(luminance, background_luminance);
-  let darkest = Math.min(luminance, background_luminance);
-  return (brightest + 0.05) / (darkest + 0.05);
+  let foreground_luminance = srgb_luminance([0xda, 0xda, 0xda]);
+  let background_luminance = srgb_luminance([0x1e, 0x1e, 0x1e]);
+
+  let contrast = raw_contrast(luminance, foreground_luminance);
+  let background_contrast = raw_contrast(luminance, background_luminance)
+
+  return (contrast * 0.8) + (background_contrast * 0.2)
 }
 
 function rgb_inverse(color) {
@@ -64,28 +75,55 @@ function rgb_inverse(color) {
   ];
 }
 
-export function colorize_text(text: string): string {
-  let input = crc32(text).toString(16);
-  let r_component_s = input.substring(0, 2);
-  let g_component_s = input.substring(3, 6);
-  let b_component_s = input.substring(5, 8);
 
-  let color = [
-    to_component(r_component_s),
-    to_component(g_component_s),
-    to_component(b_component_s),
-  ];
-
-  let contrast = srgb_contrast(color);
-  let inverse = rgb_inverse(color);
-  let contrast_on_inverse = srgb_contrast(inverse);
-  if (contrast < 4.5) {
-    // choose best contrast of the two
-    if (contrast_on_inverse < contrast) {
-      return color;
-    } else {
-      return inverse;
+function best_contrast(contrasts) {
+  let max_contrast = 0;
+  let max_contrast_index = 0;
+  for (const idx in contrasts) {
+    const element = contrasts[idx];
+    if (element > max_contrast) {
+      max_contrast = element;
+      max_contrast_index = idx;
     }
   }
-  return color;
+  return [max_contrast, max_contrast_index];
+}
+
+function random_component(random) {
+  const component_num = random.integer(0xff);
+  return Math.max(0x55, 0x55 + (component_num * 2)) & 0xff;
+}
+
+export function colorize_text(text: string): string {
+  let input = crc32(text);
+  let random = new funny();
+  random.setSeed(input);
+
+  let possible_colors = [];
+  let contrasts = [];
+  for (const idx of [0,1,2,3,4]) {
+    let color = [
+      random_component(random),
+      random_component(random),
+      random_component(random),
+    ];
+    possible_colors.push(color);
+    contrasts.push(srgb_contrast(color));
+  }
+
+  let [max_contrast, max_contrast_index] = best_contrast(contrasts);
+
+  if (max_contrast < 4.5) {
+    // invert everything
+    let inverted_colors = possible_colors.map(x => rgb_inverse(x));
+    let inverted_contrasts = inverted_colors.map(x => srgb_contrast(x));
+    let [iv_max_contrast, iv_max_contrast_index] = best_contrast(contrasts);
+    if (iv_max_contrast < max_contrast) {
+      return possible_colors[max_contrast_index];
+    } else {
+      return inverted_colors[iv_max_contrast_index];
+    }
+  } else {
+    return possible_colors[max_contrast_index];
+  }
 }
