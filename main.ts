@@ -23,7 +23,7 @@ import {
 import {colorize_text} from "color.ts";
 
 
-const TAG_REGEX = /%[\w-]+/g;
+const TAG_REGEX = /%([\w-]+)/g;
 const PRIO_REGEX = /%prio=(\d+)/g;
 // %due=2020-12-12
 // %due=2022-02-21T00:36:42
@@ -346,18 +346,26 @@ class MaidSettingTab extends PluginSettingTab {
 const coolDeco = new MatchDecorator({
   regexp: TAG_REGEX,
   decoration: match => {
-    const tag = match[0];
+    const tag = match[1];
 
     const color = colorize_text(tag);
     const color_hex = color.map(x => x.toString(16)).reduce((x, y) => x + y);
-    
 
-    return Decoration.mark({
-      inclusive: true,
-      attributes: {
-        style: `background-color: #${color_hex}`,
-      }
-    });
+    const is_nocolor_tag = tag == 'prio' || tag == 'at' || tag == 'due';
+
+    if (is_nocolor_tag) {
+      return Decoration.mark({
+        inclusive: true,
+      });
+    } else {
+
+      return Decoration.mark({
+        inclusive: true,
+        attributes: {
+          style: `background-color: #${color_hex}`,
+        }
+      });
+    }
   }
 });
 
