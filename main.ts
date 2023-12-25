@@ -20,6 +20,7 @@ import {
   MatchDecorator,
   Decoration,
 } from "@codemirror/view";
+import {colorize_text} from "color.ts";
 
 
 const TAG_REGEX = /%(\w+)/g;
@@ -347,10 +348,14 @@ const coolDeco = new MatchDecorator({
   decoration: match => {
     const tag = match[0];
 
+    const color = colorize_text(tag);
+    const color_hex = color.map(x => x.toString(16)).reduce((x, y) => x + y);
+    
+
     return Decoration.mark({
       inclusive: true,
       attributes: {
-        style: "background-color: blue",
+        style: `background-color: #${color_hex}`,
       }
     });
   }
