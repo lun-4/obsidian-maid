@@ -77,8 +77,15 @@ export function colorize_text(text: string): string {
   ];
 
   let contrast = srgb_contrast(color);
+  let inverse = rgb_inverse(color);
+  let contrast_on_inverse = srgb_contrast(inverse);
   if (contrast < 4.5) {
-    return rgb_inverse(color);
+    // choose best contrast of the two
+    if (contrast_on_inverse < contrast) {
+      return color;
+    } else {
+      return inverse;
+    }
   }
   return color;
 }
