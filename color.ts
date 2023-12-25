@@ -34,17 +34,18 @@ function to_component(component_hex: string) {
 
 function srgb_luminance(color) {
   let out_vec = [];
-  for (let channel in color) {
+  for (let channel of color) {
     channel = channel / 255;
+    let out_channel = undefined;
     if (channel < 0.03928) {
         out_channel = channel / 12.92;
     } else {
-        out_channel = ((channel + 0.055) / 1.055) ** 2.4;
+        out_channel = Math.pow(((channel + 0.055) / 1.055), 2.4);
     }
-    out_vec.push(out_channel)
+    out_vec.push(out_channel);
   }
 
-  return out_vec[0] * 0.2126 + out_vec[1] * 0.7152 + out_vec[2] * 0.0722;
+  return (out_vec[0] * 0.2126) + (out_vec[1] * 0.7152) + (out_vec[2] * 0.0722);
 }
 
 function srgb_contrast(color) {
