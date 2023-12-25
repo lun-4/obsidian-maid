@@ -23,7 +23,7 @@ import {
 import {colorize_text} from "color.ts";
 
 
-const TAG_REGEX = /%(\w+)/g;
+const TAG_REGEX = /%[\w-]+/g;
 const PRIO_REGEX = /%prio=(\d+)/g;
 // %due=2020-12-12
 // %due=2022-02-21T00:36:42
