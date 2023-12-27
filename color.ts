@@ -91,7 +91,7 @@ function best_contrast(contrasts) {
 
 function random_component(random) {
   const component_num = random.integer(0xff);
-  return Math.max(0x55, 0x55 + (component_num * 2)) & 0xff;
+  return Math.max(0x58, 0x58 + (component_num * 2) & 0xff) & 0xff;
 }
 
 export function colorize_text(text: string): string {
