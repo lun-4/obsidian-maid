@@ -343,26 +343,30 @@ class MaidSettingTab extends PluginSettingTab {
   }
 }
 
+let cached_colors = {}
+
 const coolDeco = new MatchDecorator({
   regexp: TAG_REGEX,
   decoration: match => {
     const tag = match[1];
-
-    const color = colorize_text(tag);
-    const color_hex = color.map(x => x.toString(16)).reduce((x, y) => x + y);
-
     const is_nocolor_tag = tag == 'prio' || tag == 'at' || tag == 'due';
-
     if (is_nocolor_tag) {
       return Decoration.mark({
         inclusive: true,
       });
     } else {
+      let cached_color = cached_colors[tag];
+
+      if (cached_color == undefined) {
+        const color = colorize_text(tag);
+        cached_color = color.map(x => x.toString(16)).reduce((x, y) => x + y);
+        cached_colors[tag] = cached_color;
+      }
 
       return Decoration.mark({
         inclusive: true,
         attributes: {
-          style: `background-color: #${color_hex}`,
+          style: `background-color: #${cached_color}`,
         }
       });
     }
