@@ -21,6 +21,7 @@
     "typescript": "4.4.4"
   },
   "dependencies": {
-    "pcg-random": "^2.0.1"
+    "pcg-random": "^2.0.1",
+    "ts-xxhash": "^1.0.6"
   }
 }

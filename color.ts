@@ -1,3 +1,4 @@
+import { default as megafunny } from "ts-xxhash";
 import { default as funny } from "pcg-random";
 
 // crc32 impl from https://stackoverflow.com/a/18639999
@@ -95,9 +96,11 @@ function random_component(random) {
 }
 
 export function colorize_text(text: string): string {
-  let input = crc32(text);
+  let h = new megafunny.XXHash32(365183);
+  h.update(text);
+  let input = h.digest();
   let random = new funny();
-  random.setSeed(input);
+  random.setSeed(input.toNumber());
 
   let possible_colors = [];
   let contrasts = [];
