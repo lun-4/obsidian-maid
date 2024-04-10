@@ -185,6 +185,7 @@ interface MaidPluginSettings {
   statusBarRemaining: boolean;
 
   reorderFeatureEnabled: boolean;
+  autocolorTags: boolean;
 }
 
 const DEFAULT_SETTINGS: MaidPluginSettings = {
@@ -197,6 +198,7 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarRemaining: false,
 
   reorderFeatureEnabled: false,
+  autocolorTags: false,
 };
 
 class MaidSettingTab extends PluginSettingTab {
