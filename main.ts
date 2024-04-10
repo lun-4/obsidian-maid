@@ -89,10 +89,6 @@ function removeDateToEditor(
   editor.replaceRange("", datePositionStart, datePositionEnd);
 }
 
-interface PriorityMap {
-  [key: number]: number;
-}
-
 class Task {
   position: number;
   rawText: string;
@@ -345,7 +341,7 @@ class MaidSettingTab extends PluginSettingTab {
   }
 }
 
-let cached_colors = {}
+let cached_colors = new Map<string, string>();
 
 const coolDeco = new MatchDecorator({
   regexp: TAG_REGEX,
@@ -357,12 +353,12 @@ const coolDeco = new MatchDecorator({
         inclusive: true,
       });
     } else {
-      let cached_color = cached_colors[tag];
+      let cached_color = cached_colors.get(tag);
 
       if (cached_color == undefined) {
         const color = colorize_text(tag);
         cached_color = color.map(x => x.toString(16)).reduce((x, y) => x + y);
-        cached_colors[tag] = cached_color;
+        cached_colors.set(tag, cached_color);
       }
 
       return Decoration.mark({
@@ -823,13 +819,13 @@ export default class MaidPlugin extends Plugin {
     ]);
 
     const priorityMedian = median(
-      priorities.map(([position, priority]) => priority),
+      priorities.map(([_position, priority]) => priority),
     );
     const lowPriorityTasks = priorities.filter(
-      ([position, priority]) => priority <= priorityMedian,
+      ([_position, priority]) => priority <= priorityMedian,
     );
     const highPriorityTasks = priorities.filter(
-      ([position, priority]) => priority > priorityMedian,
+      ([_position, priority]) => priority > priorityMedian,
     );
 
     function prioritizedTaskSort(
@@ -892,7 +888,7 @@ export default class MaidPlugin extends Plugin {
     highPriorityTasks.sort(prioritizedTaskSort);
     const finalPrioritizedTasks = highPriorityTasks
       .concat(lowPriorityTasks)
-      .map(([position, priority]) => position);
+      .map(([position, _priority]) => position);
 
     doneTasks.sort((firstTaskPosition, secondTaskPosition) => {
       const firstTask = tasks.get(firstTaskPosition);

@@ -51,7 +51,7 @@ function rgb_inverse(color) {
 }
 
 
-function best_contrast(contrasts) {
+function best_contrast(contrasts: number[]): [number, number] {
   let max_contrast = 0;
   let max_contrast_index = 0;
   for (const idx in contrasts) {
@@ -69,7 +69,7 @@ function random_component(random) {
   return Math.max(0x58, 0x58 + (component_num * 2) & 0xff) & 0xff;
 }
 
-export function colorize_text(text: string): string {
+export function colorize_text(text: string): number[] {
   let h = new megafunny.XXHash32(365183);
   h.update(text);
   let input = h.digest();
@@ -78,7 +78,7 @@ export function colorize_text(text: string): string {
 
   let possible_colors = [];
   let contrasts = [];
-  for (const idx of [0,1,2,3,4]) {
+  for (const _idx of [0,1,2,3,4]) {
     let color = [
       random_component(random),
       random_component(random),
@@ -93,7 +93,6 @@ export function colorize_text(text: string): string {
   if (max_contrast < 4.5) {
     // invert everything
     let inverted_colors = possible_colors.map(x => rgb_inverse(x));
-    let inverted_contrasts = inverted_colors.map(x => srgb_contrast(x));
     let [iv_max_contrast, iv_max_contrast_index] = best_contrast(contrasts);
     if (iv_max_contrast < max_contrast) {
       return possible_colors[max_contrast_index];
