@@ -181,6 +181,7 @@ interface MaidPluginSettings {
   statusBarRemaining: boolean;
 
   reorderFeatureEnabled: boolean;
+  reorderFoldMostThings: boolean;
   autocolorTags: boolean;
 }
 
@@ -194,6 +195,7 @@ const DEFAULT_SETTINGS: MaidPluginSettings = {
   statusBarRemaining: false,
 
   reorderFeatureEnabled: false,
+  reorderFoldMostThings: false,
   autocolorTags: false,
 };
 
@@ -319,6 +321,19 @@ class MaidSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             assert(this.plugin.settings !== undefined);
             this.plugin.settings.reorderFeatureEnabled = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Fold/collapse everything except the prioritized list (not tasks themselves)")
+      .addToggle((toggle) => {
+        assert(this.plugin.settings !== undefined);
+        toggle
+          .setValue(this.plugin.settings.reorderFoldMostThings)
+          .onChange(async (value) => {
+            assert(this.plugin.settings !== undefined);
+            this.plugin.settings.reorderFoldMostThings = value;
             await this.plugin.saveSettings();
           });
       });
@@ -956,6 +971,7 @@ export default class MaidPlugin extends Plugin {
     output += "# unprioritized\n";
     output += stringifyTaskPositions(unprioritizedTasks, 0);
     output += "\n# prioritized\n";
+    let prioCursorOffset = output.length - 5;
     output += stringifyTaskPositions(finalPrioritizedTasks, 0);
     output += "\n# done\n";
     output += stringifyTaskPositions(doneTasks, 0);
@@ -982,6 +998,13 @@ export default class MaidPlugin extends Plugin {
       { line: 0, ch: 0 },
       { line: lastLine, ch: lastChar },
     );
+    editor.focus();
+    if (this.settings.reorderFoldMostThings) {
+      console.log('folding everything, unfolding only prioritized')
+      editor.exec('foldAll');
+      editor.setCursor(editor.offsetToPos(prioCursorOffset));
+      editor.exec('toggleFold');
+    }
   }
 
   async loadSettings() {
