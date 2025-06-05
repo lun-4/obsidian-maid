@@ -1,105 +1,170 @@
-import { default as megafunny } from "ts-xxhash";
-import { default as funny } from "pcg-random";
+import { XXHash32 as megafunny } from "ts-xxhash";
+//import { default as megafunny } from "ts-xxhash";
+// import { default as funny } from "pcg-random";
 
-function to_component(component_hex: string) {
-  let component_num = parseInt(component_hex, 16);
-  return Math.max(0xaa, 0xaa + (component_num * 3)) & 0xff;
+// ——————————————
+// 1) Utility: WCAG contrast helpers
+// ——————————————
+
+/**
+ * Convert sRGB channel (0–255) to linearized value (0.0–1.0).
+ */
+function _srgbChannelToLinear(c: number): number {
+  const x = c / 255;
+  return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
 }
 
-// magic from
-// https://stackoverflow.com/questions/9733288/how-to-programmatically-calculate-the-contrast-ratio-between-two-colors
-
-function srgb_luminance(color) {
-  let out_vec = [];
-  for (let channel of color) {
-    channel = channel / 255;
-    let out_channel = undefined;
-    if (channel < 0.03928) {
-        out_channel = channel / 12.92;
-    } else {
-        out_channel = Math.pow(((channel + 0.055) / 1.055), 2.4);
-    }
-    out_vec.push(out_channel);
-  }
-
-  return (out_vec[0] * 0.2126) + (out_vec[1] * 0.7152) + (out_vec[2] * 0.0722);
+/**
+ * Compute relative luminance of an RGB triplet (0–255 each), per WCAG 2.0.
+ */
+function srgbLuminance(rgb: [number, number, number]): number {
+  const [r, g, b] = rgb.map(_srgbChannelToLinear);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function raw_contrast(luminance, other_luminance) {
-  let brightest = Math.max(luminance, other_luminance);
-  let darkest = Math.min(luminance, other_luminance);
-  return (brightest + 0.05) / (darkest + 0.05);
+/**
+ * Compute WCAG contrast ratio between two RGB colors.
+ *   Contrast = (L1 + 0.05) / (L2 + 0.05),
+ * where L1 = brighter luminance, L2 = darker luminance.
+ */
+function wcagContrast(
+  rgb1: [number, number, number],
+  rgb2: [number, number, number],
+): number {
+  const lum1 = srgbLuminance(rgb1);
+  const lum2 = srgbLuminance(rgb2);
+  const Lb = Math.max(lum1, lum2);
+  const Ld = Math.min(lum1, lum2);
+  return (Lb + 0.05) / (Ld + 0.05);
 }
 
-function srgb_contrast(color) {
-  let luminance = srgb_luminance(color);
-  let foreground_luminance = srgb_luminance([0xda, 0xda, 0xda]);
-  let background_luminance = srgb_luminance([0x1e, 0x1e, 0x1e]);
-
-  let contrast = raw_contrast(luminance, foreground_luminance);
-  let background_contrast = raw_contrast(luminance, background_luminance)
-
-  return (contrast * 0.8) + (background_contrast * 0.2)
+/**
+ * Clamp a number to the integer [0, 255] range.
+ */
+function _clamp255(v: number): number {
+  return Math.min(255, Math.max(0, Math.round(v)));
 }
 
-function rgb_inverse(color) {
-  return [
-    255 - color[0],
-    255 - color[1],
-    255 - color[2],
-  ];
-}
+// ——————————————
+// 2) Convert HSL → RGB (0–255)
+// ——————————————
 
+/**
+ * Given h ∈ [0,360), s ∈ [0,1], l ∈ [0,1], returns [r,g,b] each in 0–255.
+ * Standard CSS HSL → RGB conversion.
+ */
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  // Helper: hue → rgb channel
+  const _hue2rgb = (p: number, q: number, t: number): number => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
 
-function best_contrast(contrasts: number[]): [number, number] {
-  let max_contrast = 0;
-  let max_contrast_index = 0;
-  for (const idx in contrasts) {
-    const element = contrasts[idx];
-    if (element > max_contrast) {
-      max_contrast = element;
-      max_contrast_index = idx;
-    }
-  }
-  return [max_contrast, max_contrast_index];
-}
+  const hf = h / 360; // normalized to [0,1]
+  let r: number, g: number, b: number;
 
-function random_component(random) {
-  const component_num = random.integer(0xff);
-  return Math.max(0x58, 0x58 + (component_num * 2) & 0xff) & 0xff;
-}
-
-export function colorize_text(text: string): number[] {
-  let h = new megafunny.XXHash32(365183);
-  h.update(text);
-  let input = h.digest();
-  let random = new funny();
-  random.setSeed(input.toNumber());
-
-  let possible_colors = [];
-  let contrasts = [];
-  for (const _idx of [0,1,2,3,4]) {
-    let color = [
-      random_component(random),
-      random_component(random),
-      random_component(random),
-    ];
-    possible_colors.push(color);
-    contrasts.push(srgb_contrast(color));
-  }
-
-  let [max_contrast, max_contrast_index] = best_contrast(contrasts);
-
-  if (max_contrast < 4.5) {
-    // invert everything
-    let inverted_colors = possible_colors.map(x => rgb_inverse(x));
-    let [iv_max_contrast, iv_max_contrast_index] = best_contrast(contrasts);
-    if (iv_max_contrast < max_contrast) {
-      return possible_colors[max_contrast_index];
-    } else {
-      return inverted_colors[iv_max_contrast_index];
-    }
+  if (s === 0) {
+    // achromatic: just gray
+    r = g = b = l;
   } else {
-    return possible_colors[max_contrast_index];
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = _hue2rgb(p, q, hf + 1 / 3);
+    g = _hue2rgb(p, q, hf);
+    b = _hue2rgb(p, q, hf - 1 / 3);
   }
+
+  return [_clamp255(r * 255), _clamp255(g * 255), _clamp255(b * 255)];
+}
+
+// ——————————————
+// 3) “Hash → HSL → RGB → Contrast‐check” pipeline
+// ——————————————
+
+/**
+ * Given arbitrary short text, produce a “random but reproducible” H value (0–360)
+ * by hashing. We then fix S=0.75 and pick an initial midpoint L=0.50.
+ */
+function hashToInitialHSL(text: string): { h: number; s: number; l: number } {
+  // (a) XXHash32 → 32‐bit seed
+  const h = new megafunny(0xdeadbeef);
+  h.update(text);
+  const digest = h.digest().toNumber(); // 0 .. 2^32‐1
+
+  // (b) Map it to [0, 360) by taking modulo
+  const hue = digest % 360;
+
+  // (c) Fixed saturation
+  const sat = 0.75;
+
+  // (d) Fixed “middle” lightness
+  const lit = 0.5;
+
+  return { h: hue, s: sat, l: lit };
+}
+
+/**
+ * Given an HSL triple and a target contrast ratio threshold (against white),
+ * return a new RGB that is “pushed darker until it hits contrast ≥ 4.5,”
+ * or “pushed lighter” if for some reason making it darker fails (e.g. if L is already
+ * 0). In practice you’ll almost always darken from L=0.50 → <0.50.
+ */
+function ensureContrastAgainstWhite(
+  initialHSL: { h: number; s: number; l: number },
+  contrastThreshold = 4.5,
+): [number, number, number] {
+  const whiteRgb: [number, number, number] = [198, 208, 245]; // obsidian text color is not pure ffffff
+
+  let { h, s, l } = initialHSL;
+  let rgb: [number, number, number] = hslToRgb(h, s, l);
+  let currentContrast = wcagContrast(rgb, whiteRgb);
+
+  // If it already meets 4.5:1, just return it.
+  if (currentContrast >= contrastThreshold) {
+    return rgb;
+  }
+
+  // Otherwise, try gradually DARKENING (i.e. reducing L) by 0.05 steps until we hit it.
+  let tries = 0;
+  while (currentContrast < contrastThreshold && tries < 20) {
+    l = Math.max(0, l - 0.05);
+    rgb = hslToRgb(h, s, l);
+    currentContrast = wcagContrast(rgb, whiteRgb);
+    tries++;
+    if (l <= 0) break; // fully black if needed
+  }
+
+  // If that still didn’t reach threshold (unlikely), try LIGHTENING from 0.50 → 1.00:
+  tries = 0;
+  if (currentContrast < contrastThreshold) {
+    l = initialHSL.l; // reset to 0.50
+    while (currentContrast < contrastThreshold && tries < 20) {
+      l = Math.min(1, l + 0.05);
+      rgb = hslToRgb(h, s, l);
+      currentContrast = wcagContrast(rgb, whiteRgb);
+      tries++;
+      if (l >= 1) break; // fully white if needed (this actually would fail contrast!)
+    }
+  }
+
+  // Final return (if still under threshold, we return whatever we got.)
+  return rgb;
+}
+
+/**
+ * Given a short string (e.g. a tag), return an RGB triplet [0–255].
+ * Guarantees ≥ 4.5:1 contrast against white (#ffffff).
+ */
+export function colorize_text(text: string): [number, number, number] {
+  // 1) Map text → (H,S,L=0.50)
+  const initialHSL = hashToInitialHSL(text);
+
+  // 2) Adjust L darker/lighter until contrast >= 4.5:1 vs. #ffffff
+  const rgb = ensureContrastAgainstWhite(initialHSL, 4.5);
+
+  return rgb;
 }

@@ -367,18 +367,21 @@ const coolDeco = new MatchDecorator({
         inclusive: true,
       });
     } else {
-      let cached_color = cached_colors.get(tag);
+      let cached_hex = cached_colors.get(tag);
+      if (!cached_hex) {
+        const [r, g, b] = colorize_text(tag);
+        const rr = r.toString(16).padStart(2, "0");
+        const gg = g.toString(16).padStart(2, "0");
+        const bb = b.toString(16).padStart(2, "0");
 
-      if (cached_color == undefined) {
-        const color = colorize_text(tag);
-        cached_color = color.map(x => x.toString(16)).reduce((x, y) => x + y);
-        cached_colors.set(tag, cached_color);
+        cached_hex = rr + gg + bb;
+        cached_colors.set(tag, cached_hex!);
       }
 
       return Decoration.mark({
         inclusive: true,
         attributes: {
-          style: `background-color: #${cached_color}`,
+          style: `background-color: #${cached_hex};`,
         },
       });
     }
