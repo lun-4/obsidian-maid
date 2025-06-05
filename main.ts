@@ -6,22 +6,21 @@ import {
   Editor,
   MarkdownView,
   EditorPosition,
-  ListItemCache,
   TFile,
   TAbstractFile,
-  Modal,
+  MarkdownFileInfo,
 } from "obsidian";
 import {
   ViewUpdate,
   PluginValue,
   EditorView,
   ViewPlugin,
-  WidgetType,
   MatchDecorator,
   Decoration,
+  DecorationSet,
+  PluginSpec,
 } from "@codemirror/view";
-import {colorize_text} from "color.ts";
-
+import { colorize_text } from "./color";
 
 const TAG_REGEX = /%([\w-]+)/g;
 const PRIO_REGEX = /%prio=(\d+)/g;
@@ -326,7 +325,9 @@ class MaidSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Fold/collapse everything except the prioritized list (not tasks themselves)")
+      .setName(
+        "Fold/collapse everything except the prioritized list (not tasks themselves)",
+      )
       .addToggle((toggle) => {
         assert(this.plugin.settings !== undefined);
         toggle
@@ -337,7 +338,6 @@ class MaidSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
-
 
     new Setting(containerEl)
       .setName("Enable tag autocoloring")
@@ -352,7 +352,6 @@ class MaidSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
-    
   }
 }
 
@@ -360,9 +359,9 @@ let cached_colors = new Map<string, string>();
 
 const coolDeco = new MatchDecorator({
   regexp: TAG_REGEX,
-  decoration: match => {
+  decoration: (match: RegExpMatchArray) => {
     const tag = match[1];
-    const is_nocolor_tag = tag == 'prio' || tag == 'at' || tag == 'due';
+    const is_nocolor_tag = tag == "prio" || tag == "at" || tag == "due";
     if (is_nocolor_tag) {
       return Decoration.mark({
         inclusive: true,
@@ -380,22 +379,22 @@ const coolDeco = new MatchDecorator({
         inclusive: true,
         attributes: {
           style: `background-color: #${cached_color}`,
-        }
+        },
       });
     }
-  }
+  },
 });
 
 class AutocolorPlugin implements PluginValue {
   decorations: DecorationSet;
 
   constructor(view: EditorView) {
-    this.decorations = coolDeco.createDeco(view)
+    this.decorations = coolDeco.createDeco(view);
   }
 
   update(update: ViewUpdate) {
     if (update.docChanged || update.viewportChanged) {
-      this.decorations = coolDeco.updateDeco(update, this.decorations)
+      this.decorations = coolDeco.updateDeco(update, this.decorations);
     }
   }
 }
@@ -404,7 +403,10 @@ const pluginSpec: PluginSpec<AutocolorPlugin> = {
   decorations: (value: AutocolorPlugin) => value.decorations,
 };
 
-export const autocolorPlugin = ViewPlugin.fromClass(AutocolorPlugin, pluginSpec);
+export const autocolorPlugin = ViewPlugin.fromClass(
+  AutocolorPlugin,
+  pluginSpec,
+);
 
 export default class MaidPlugin extends Plugin {
   settings?: MaidPluginSettings;
@@ -441,7 +443,7 @@ export default class MaidPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on(
         "editor-change",
-        (editor: Editor, markdownView: MarkdownView) => {
+        (_editor: Editor, _markdownView: MarkdownView | MarkdownFileInfo) => {
           if (this.isFileSafe) {
             console.log("file is not safe, waiting for metadata");
             this.isFileSafe = false;
@@ -476,7 +478,10 @@ export default class MaidPlugin extends Plugin {
       id: "insert-current-date",
       name: "Insert current date as an %at tag",
       hotkeys: [{ modifiers: ["Ctrl"], key: "j" }],
-      editorCallback: (editor: Editor, view: MarkdownView) => {
+      editorCallback: (
+        editor: Editor,
+        view: MarkdownView | MarkdownFileInfo,
+      ) => {
         this.insertCurrentDate(editor, view);
       },
     });
@@ -485,7 +490,10 @@ export default class MaidPlugin extends Plugin {
       id: "reorder-task",
       name: "Organize task list",
       hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
-      editorCallback: (editor: Editor, view: MarkdownView) => {
+      editorCallback: (
+        editor: Editor,
+        view: MarkdownView | MarkdownFileInfo,
+      ) => {
         this.reorderTaskList(editor, view);
       },
     });
@@ -494,7 +502,10 @@ export default class MaidPlugin extends Plugin {
       id: "roll-task",
       name: "Roll random task by priority",
       hotkeys: [{ modifiers: ["Ctrl"], key: "g" }],
-      editorCallback: (editor: Editor, view: MarkdownView) => {
+      editorCallback: (
+        editor: Editor,
+        view: MarkdownView | MarkdownFileInfo,
+      ) => {
         this.rollTask(editor, view);
       },
     });
@@ -503,7 +514,10 @@ export default class MaidPlugin extends Plugin {
       id: "toggle-task-completeness",
       name: "Toggle completeness of a task",
       hotkeys: [{ modifiers: ["Ctrl"], key: "m" }],
-      editorCallback: (editor: Editor, view: MarkdownView) => {
+      editorCallback: (
+        editor: Editor,
+        _view: MarkdownView | MarkdownFileInfo,
+      ) => {
         const cursor = editor.getCursor();
 
         const wantedLine = editor.getLine(cursor.line);
@@ -541,7 +555,10 @@ export default class MaidPlugin extends Plugin {
       id: "toggle-task-leftness",
       name: "Toggle leftness of a task (for when you've given up on it)",
       hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "m" }],
-      editorCallback: (editor: Editor, view: MarkdownView) => {
+      editorCallback: (
+        editor: Editor,
+        _view: MarkdownView | MarkdownFileInfo,
+      ) => {
         const cursor = editor.getCursor();
 
         const wantedLine = editor.getLine(cursor.line);
@@ -575,12 +592,15 @@ export default class MaidPlugin extends Plugin {
       },
     });
 
-    if (this.settings.autocolorTags) {
+    if (this.settings!.autocolorTags) {
       this.registerEditorExtension([autocolorPlugin]);
     }
   }
 
-  async insertCurrentDate(editor: Editor, view: MarkdownView) {
+  async insertCurrentDate(
+    editor: Editor,
+    _view: MarkdownView | MarkdownFileInfo,
+  ) {
     const cursor = editor.getCursor();
 
     const dateObj = new Date();
@@ -596,9 +616,12 @@ export default class MaidPlugin extends Plugin {
     editor.replaceRange("%at=" + dateString, datePosition, datePosition);
   }
 
-  makeTaskMap(view: MarkdownView): TaskMap {
+  makeTaskMap(view: MarkdownView | MarkdownFileInfo): TaskMap {
     if (!this.isFileSafe) {
       console.warn("file is unsafe, please wait");
+      throw new Error("file is unsafe, please wait");
+    }
+    if (view.file == null) {
       throw new Error("file is unsafe, please wait");
     }
     const cachedMetadata = this.app.metadataCache.getFileCache(view.file);
@@ -612,7 +635,10 @@ export default class MaidPlugin extends Plugin {
     let map = new TaskMap(rawMap, this.settings);
 
     for (const listItem of listItems) {
-      const fileData = view.data;
+      const fileData = view.editor?.getValue();
+      if (fileData === undefined) {
+        throw new Error("file is unsafe");
+      }
       const rawText = fileData.substring(
         listItem.position.start.offset,
         listItem.position.end.offset,
@@ -667,7 +693,7 @@ export default class MaidPlugin extends Plugin {
     return map;
   }
 
-  async rollTask(editor: Editor, view: MarkdownView) {
+  async rollTask(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
     const tasks = this.makeTaskMap(view);
 
     let prio_pairs: Array<Array<number>> = [];
@@ -700,7 +726,7 @@ export default class MaidPlugin extends Plugin {
     }
   }
 
-  async reorderTaskList(editor: Editor, view: MarkdownView) {
+  async reorderTaskList(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
     // NOTE: this code WILL NOT CARE about text outside of the markdown tree.
     // IT WILL DESTROY SUCH TEXT AFTER REORDERING.
     // DO NOT USE THIS FEATURE IF YOUR TODO LIST DOES NOT FOLLOW MY FORMAT.
@@ -1000,10 +1026,10 @@ export default class MaidPlugin extends Plugin {
     );
     editor.focus();
     if (this.settings.reorderFoldMostThings) {
-      console.log('folding everything, unfolding only prioritized')
-      editor.exec('foldAll');
+      console.log("folding everything, unfolding only prioritized");
+      editor.exec("foldAll");
       editor.setCursor(editor.offsetToPos(prioCursorOffset));
-      editor.exec('toggleFold');
+      editor.exec("toggleFold");
     }
   }
 
